@@ -35,6 +35,7 @@ def create_app(config=None):
     app = Flask(__name__)
     app.secret_key = configuration.get('webserver', 'SECRET_KEY')
     app.config['LOGIN_DISABLED'] = not configuration.getboolean('webserver', 'AUTHENTICATE')
+    timezone = configuration.get('core', 'TIMEZONE')
 
     csrf.init_app(app)
 
@@ -72,7 +73,7 @@ def create_app(config=None):
             models.SlaMiss,
             Session, name="SLA Misses", category="Browse"))
         av(vs.TaskInstanceModelView(models.TaskInstance,
-            Session, name="Task Instances", category="Browse"))
+                                    Session, name="Task Instances", category="Browse"))
         av(vs.LogModelView(
             models.Log, Session, name="Logs", category="Browse"))
         av(vs.JobModelView(
@@ -93,7 +94,7 @@ def create_app(config=None):
             url='http://pythonhosted.org/airflow/'))
         admin.add_link(
             base.MenuLink(category='Docs',
-                name='Github',url='https://github.com/airbnb/airflow'))
+                          name='Github', url='https://github.com/airbnb/airflow'))
 
         av(vs.DagRunModelView(
             models.DagRun, Session, name="DAG Runs", category="Browse"))
@@ -118,6 +119,7 @@ def create_app(config=None):
         def jinja_globals():
             return {
                 'hostname': socket.gethostname(),
+                'timezone': timezone,
             }
 
         @app.teardown_appcontext
@@ -127,6 +129,8 @@ def create_app(config=None):
         return app
 
 app = None
+
+
 def cached_app(config=None):
     global app
     if not app:
