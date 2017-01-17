@@ -33,6 +33,7 @@ import traceback
 import sqlalchemy as sqla
 from sqlalchemy import or_, desc, and_
 
+import pytz
 
 from flask import redirect, url_for, request, Markup, Response, current_app, render_template
 from flask_admin import BaseView, expose, AdminIndexView
@@ -71,6 +72,8 @@ QUERY_LIMIT = 100000
 CHART_LIMIT = 200000
 
 dagbag = models.DagBag(os.path.expanduser(conf.get('core', 'DAGS_FOLDER')))
+TIMEZONE = pytz.timezone(conf.get('core', 'TIMEZONE'))
+
 
 login_required = airflow.login.login_required
 current_user = airflow.login.current_user
@@ -144,7 +147,7 @@ def duration_f(v, c, m, p):
 def datetime_f(v, c, m, p):
     attr = getattr(m, p)
     dttm = attr.isoformat() if attr else ''
-    if datetime.now().isoformat()[:4] == dttm[:4]:
+    if datetime.now(TIMEZONE).isoformat()[:4] == dttm[:4]:
         dttm = dttm[5:]
     return Markup("<nobr>{}</nobr>".format(dttm))
 
@@ -232,8 +235,8 @@ def data_profiling_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if (
-                    current_app.config['LOGIN_DISABLED'] or
-                    (not current_user.is_anonymous() and current_user.data_profiling())
+            current_app.config['LOGIN_DISABLED'] or
+            (not current_user.is_anonymous() and current_user.data_profiling())
         ):
             return f(*args, **kwargs)
         else:
@@ -334,15 +337,15 @@ class Airflow(BaseView):
         if not payload['error'] and len(df) == 0:
             payload['error'] += "Empty result set. "
         elif (
-                            not payload['error'] and
-                                chart.sql_layout == 'series' and
-                            chart.chart_type != "datatable" and
-                        len(df.columns) < 3):
+                not payload['error'] and
+                chart.sql_layout == 'series' and
+                chart.chart_type != "datatable" and
+                len(df.columns) < 3):
             payload['error'] += "SQL needs to return at least 3 columns. "
         elif (
-                        not payload['error'] and
-                            chart.sql_layout == 'columns'and
-                        len(df.columns) < 2):
+                not payload['error'] and
+                chart.sql_layout == 'columns'and
+                len(df.columns) < 2):
             payload['error'] += "SQL needs to return at least 2 columns. "
         elif not payload['error']:
             import numpy as np
@@ -396,7 +399,7 @@ class Airflow(BaseView):
                         [color_perc_lbound, '#00D1C1'],
                         [
                             color_perc_lbound +
-                            ((color_perc_rbound - color_perc_lbound)/2),
+                            ((color_perc_rbound - color_perc_lbound) / 2),
                             '#FFFFCC'
                         ],
                         [color_perc_rbound, '#FF5A5F']
@@ -410,8 +413,8 @@ class Airflow(BaseView):
                     diff = float(color_perc_rbound - color_perc_lbound)
                     stops = [
                         [color_perc_lbound, '#FFFFFF'],
-                        [color_perc_lbound + 0.33*diff, '#FFFF00'],
-                        [color_perc_lbound + 0.66*diff, '#FF0000'],
+                        [color_perc_lbound + 0.33 * diff, '#FFFF00'],
+                        [color_perc_lbound + 0.66 * diff, '#FF0000'],
                         [color_perc_rbound, '#000000']
                     ]
                 else:
@@ -419,7 +422,7 @@ class Airflow(BaseView):
                         [color_perc_lbound, '#FFFFFF'],
                         [
                             color_perc_lbound +
-                            ((color_perc_rbound - color_perc_lbound)/2),
+                            ((color_perc_rbound - color_perc_lbound) / 2),
                             '#888888'
                         ],
                         [color_perc_rbound, '#000000'],
@@ -588,7 +591,8 @@ class Airflow(BaseView):
         session = Session()
 
         LastDagRun = (
-            session.query(DagRun.dag_id, sqla.func.max(DagRun.execution_date).label('execution_date'))
+            session.query(DagRun.dag_id, sqla.func.max(
+                DagRun.execution_date).label('execution_date'))
             .group_by(DagRun.dag_id)
             .subquery('last_dag_run')
         )
@@ -643,7 +647,6 @@ class Airflow(BaseView):
                 }
                 payload[dag.safe_dag_id].append(d)
         return wwwutils.json_response(payload)
-
 
     @expose('/code')
     @login_required
@@ -828,7 +831,7 @@ class Airflow(BaseView):
                     conf.get('celery', 'WORKER_LOG_SERVER_PORT')
                 url = os.path.join(
                     "http://{host}:{WORKER_LOG_SERVER_PORT}/log", log_relative
-                    ).format(**locals())
+                ).format(**locals())
                 log += "*** Log file isn't local.\n"
                 log += "*** Fetching here: {url}\n".format(**locals())
                 try:
@@ -897,7 +900,7 @@ class Airflow(BaseView):
             if not attr_name.startswith('_'):
                 attr = getattr(task, attr_name)
                 if type(attr) != type(self.task) and \
-                                attr_name not in attr_renderer:
+                        attr_name not in attr_renderer:
                     attributes.append((attr_name, str(attr)))
 
         title = "Task Details"
@@ -954,6 +957,7 @@ class Airflow(BaseView):
             execution_date=execution_date,
             form=form,
             dag=dag, title=title)\
+
 
     @expose('/run')
     @login_required
@@ -1091,7 +1095,7 @@ class Airflow(BaseView):
         # Flagging tasks as successful
         session = settings.Session()
         task_ids = [task_id]
-        end_date = ((dag.latest_execution_date or datetime.now())
+        end_date = ((dag.latest_execution_date or datetime.now(TIMEZONE))
                     if future else execution_date)
 
         if 'start_date' in dag.default_args:
@@ -1205,7 +1209,7 @@ class Airflow(BaseView):
         if base_date:
             base_date = dateutil.parser.parse(base_date)
         else:
-            base_date = dag.latest_execution_date or datetime.now()
+            base_date = dag.latest_execution_date or datetime.now(TIMEZONE)
 
         dates = dag.date_range(base_date, num=-abs(num_runs))
         min_date = dates[0] if dates else datetime(2000, 1, 1)
@@ -1214,16 +1218,16 @@ class Airflow(BaseView):
         dag_runs = (
             session.query(DR)
             .filter(
-                DR.dag_id==dag.dag_id,
-                DR.execution_date<=base_date,
-                DR.execution_date>=min_date)
+                DR.dag_id == dag.dag_id,
+                DR.execution_date <= base_date,
+                DR.execution_date >= min_date)
             .all()
         )
         dag_runs = {
             dr.execution_date: alchemy_to_dict(dr) for dr in dag_runs}
 
         tis = dag.get_task_instances(
-                session, start_date=min_date, end_date=base_date)
+            session, start_date=min_date, end_date=base_date)
         dates = sorted(list({ti.execution_date for ti in tis}))
         max_date = max([ti.execution_date for ti in tis]) if dates else None
         task_instances = {}
@@ -1260,10 +1264,10 @@ class Airflow(BaseView):
             return {
                 'name': task.task_id,
                 'instances': [
-                        task_instances.get((task.task_id, d)) or {
-                            'execution_date': d.isoformat(),
-                            'task_id': task.task_id
-                        }
+                    task_instances.get((task.task_id, d)) or {
+                        'execution_date': d.isoformat(),
+                        'task_id': task.task_id
+                    }
                     for d in dates],
                 children_key: children,
                 'num_dep': len(task.upstream_list),
@@ -1349,7 +1353,7 @@ class Airflow(BaseView):
         if dttm:
             dttm = dateutil.parser.parse(dttm)
         else:
-            dttm = dag.latest_execution_date or datetime.now().date()
+            dttm = dag.latest_execution_date or datetime.now(TIMEZONE).date()
 
         DR = models.DagRun
         drs = (
@@ -1425,7 +1429,7 @@ class Airflow(BaseView):
         if base_date:
             base_date = dateutil.parser.parse(base_date)
         else:
-            base_date = dag.latest_execution_date or datetime.now()
+            base_date = dag.latest_execution_date or datetime.now(TIMEZONE)
 
         dates = dag.date_range(base_date, num=-abs(num_runs))
         min_date = dates[0] if dates else datetime(2000, 1, 1)
@@ -1445,13 +1449,13 @@ class Airflow(BaseView):
                 if ti.duration:
                     data.append([
                         ti.execution_date.isoformat(),
-                        float(ti.duration) / (60*60)
+                        float(ti.duration) / (60 * 60)
                     ])
             if data:
                 all_data.append({'data': data, 'name': task.task_id})
 
         tis = dag.get_task_instances(
-                session, start_date=min_date, end_date=base_date)
+            session, start_date=min_date, end_date=base_date)
         dates = sorted(list({ti.execution_date for ti in tis}))
         max_date = max([ti.execution_date for ti in tis]) if dates else None
 
@@ -1485,7 +1489,7 @@ class Airflow(BaseView):
         if base_date:
             base_date = dateutil.parser.parse(base_date)
         else:
-            base_date = dag.latest_execution_date or datetime.now()
+            base_date = dag.latest_execution_date or datetime.now(TIMEZONE)
 
         dates = dag.date_range(base_date, num=-abs(num_runs))
         min_date = dates[0] if dates else datetime(2000, 1, 1)
@@ -1506,12 +1510,12 @@ class Airflow(BaseView):
                     ts = ti.execution_date
                     if dag.schedule_interval:
                         ts = dag.following_schedule(ts)
-                    secs = old_div((ti.end_date - ts).total_seconds(), 60*60)
+                    secs = old_div((ti.end_date - ts).total_seconds(), 60 * 60)
                     data.append([ti.execution_date.isoformat(), secs])
             all_data.append({'data': data, 'name': task.task_id})
 
         tis = dag.get_task_instances(
-                session, start_date=min_date, end_date=base_date)
+            session, start_date=min_date, end_date=base_date)
         dates = sorted(list({ti.execution_date for ti in tis}))
         max_date = max([ti.execution_date for ti in tis]) if dates else None
 
@@ -1562,7 +1566,7 @@ class Airflow(BaseView):
             DagModel).filter(DagModel.dag_id == dag_id).first()
 
         if orm_dag:
-            orm_dag.last_expired = datetime.now()
+            orm_dag.last_expired = datetime.now(TIMEZONE)
             session.merge(orm_dag)
         session.commit()
         session.close()
@@ -1600,7 +1604,7 @@ class Airflow(BaseView):
         if dttm:
             dttm = dateutil.parser.parse(dttm)
         else:
-            dttm = dag.latest_execution_date or datetime.now().date()
+            dttm = dag.latest_execution_date or datetime.now(TIMEZONE).date()
 
         form = DateTimeForm(data={'execution_date': dttm})
 
@@ -1612,7 +1616,7 @@ class Airflow(BaseView):
         tasks = []
         data = []
         for i, ti in enumerate(tis):
-            end_date = ti.end_date or datetime.now()
+            end_date = ti.end_date or datetime.now(TIMEZONE)
             tasks += [ti.task_id]
             color = State.color(ti.state)
             data.append({
@@ -1703,6 +1707,7 @@ class Airflow(BaseView):
 
 
 class HomeView(AdminIndexView):
+
     @expose("/")
     @login_required
     def index(self):
@@ -1714,10 +1719,10 @@ class HomeView(AdminIndexView):
         if do_filter:
             qry = (
                 session.query(DM)
-                    .filter(
+                .filter(
                     ~DM.is_subdag, DM.is_active,
                     DM.owners == current_user.username)
-                    .all()
+                .all()
             )
         else:
             qry = session.query(DM).filter(~DM.is_subdag, DM.is_active).all()
@@ -1738,7 +1743,7 @@ class HomeView(AdminIndexView):
                 if (
                     dag.owner == current_user.username and (not dag.parent_dag)
                 )
-                }
+            }
         else:
             dags = {dag.dag_id: dag for dag in dags if not dag.parent_dag}
         all_dag_ids = sorted(set(orm_dags.keys()) | set(dags.keys()))
@@ -1750,6 +1755,7 @@ class HomeView(AdminIndexView):
 
 
 class QueryView(wwwutils.DataProfilingMixin, BaseView):
+
     @expose('/')
     @wwwutils.gzipped
     def query(self):
@@ -1777,7 +1783,8 @@ class QueryView(wwwutils.DataProfilingMixin, BaseView):
             db = [db for db in dbs if db.conn_id == conn_id_str][0]
             hook = db.get_hook()
             try:
-                df = hook.get_pandas_df(wwwutils.limit_sql(sql, QUERY_LIMIT, conn_type=db.conn_type))
+                df = hook.get_pandas_df(wwwutils.limit_sql(
+                    sql, QUERY_LIMIT, conn_type=db.conn_type))
                 # df = hook.get_pandas_df(sql)
                 has_data = len(df) > 0
                 df = df.fillna('')
@@ -1859,6 +1866,7 @@ class SlaMissModelView(wwwutils.SuperUserMixin, ModelViewOnly):
         'email_sent': {'disabled': True},
         'timestamp': {'disabled': True},
     }
+
 
 class ChartModelView(wwwutils.DataProfilingMixin, AirflowModelView):
     verbose_name = "chart"
@@ -1944,9 +1952,9 @@ class ChartModelView(wwwutils.DataProfilingMixin, AirflowModelView):
             (c.conn_id, c.conn_id)
             for c in (
                 Session().query(models.Connection.conn_id)
-                    .group_by(models.Connection.conn_id)
+                .group_by(models.Connection.conn_id)
             )
-            ]
+        ]
     }
 
     def on_model_change(self, form, model, is_created=True):
@@ -1956,7 +1964,7 @@ class ChartModelView(wwwutils.DataProfilingMixin, AirflowModelView):
             model.iteration_no += 1
         if not model.user_id and current_user and hasattr(current_user, 'id'):
             model.user_id = current_user.id
-        model.last_modified = datetime.now()
+        model.last_modified = datetime.now(TIMEZONE)
 
 
 class KnowEventView(wwwutils.DataProfilingMixin, AirflowModelView):
@@ -2071,9 +2079,9 @@ class DagRunModelView(ModelViewOnly):
                 count += 1
                 dr.state = target_state
                 if target_state == State.RUNNING:
-                    dr.start_date = datetime.now()
+                    dr.start_date = datetime.now(TIMEZONE)
                 else:
-                    dr.end_date = datetime.now()
+                    dr.end_date = datetime.now(TIMEZONE)
             session.commit()
             flash(
                 "{count} dag runs were set to '{target_state}'".format(**locals()))
@@ -2203,7 +2211,7 @@ class ConnectionModelView(wwwutils.SuperUserMixin, AirflowModelView):
     # extra__{conn_type}__name. You can also hide form elements and rename
     # others from the connection_form.js file
     form_extra_fields = {
-        'extra__jdbc__drv_path' : StringField('Driver Path'),
+        'extra__jdbc__drv_path': StringField('Driver Path'),
         'extra__jdbc__drv_clsname': StringField('Driver Class'),
         'extra__google_cloud_platform__project': StringField('Project'),
         'extra__google_cloud_platform__key_path': StringField('Keyfile Path'),
@@ -2243,7 +2251,7 @@ class ConnectionModelView(wwwutils.SuperUserMixin, AirflowModelView):
         formdata = form.data
         if formdata['conn_type'] in ['jdbc', 'google_cloud_platform']:
             extra = {
-                key:formdata[key]
+                key: formdata[key]
                 for key in self.form_extra_fields.keys() if key in formdata}
             model.extra = json.dumps(extra)
 
@@ -2286,6 +2294,7 @@ class UserModelView(wwwutils.SuperUserMixin, AirflowModelView):
 
 
 class ConfigurationView(wwwutils.SuperUserMixin, BaseView):
+
     @expose('/')
     def conf(self):
         raw = request.args.get('raw') == "true"
@@ -2350,9 +2359,9 @@ class DagModelView(wwwutils.SuperUserMixin, ModelView):
         """
         return (
             super(DagModelView, self)
-                .get_query()
-                .filter(or_(models.DagModel.is_active, models.DagModel.is_paused))
-                .filter(~models.DagModel.is_subdag)
+            .get_query()
+            .filter(or_(models.DagModel.is_active, models.DagModel.is_paused))
+            .filter(~models.DagModel.is_subdag)
         )
 
     def get_count_query(self):
@@ -2361,7 +2370,7 @@ class DagModelView(wwwutils.SuperUserMixin, ModelView):
         """
         return (
             super(DagModelView, self)
-                .get_count_query()
-                .filter(models.DagModel.is_active)
-                .filter(~models.DagModel.is_subdag)
+            .get_count_query()
+            .filter(models.DagModel.is_active)
+            .filter(~models.DagModel.is_subdag)
         )

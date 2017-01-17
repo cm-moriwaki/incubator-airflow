@@ -1,12 +1,17 @@
 from datetime import datetime
 import logging
 
+import pytz
+
 from airflow.models import BaseOperator, DagRun
 from airflow.utils.decorators import apply_defaults
-from airflow import settings
+from airflow import settings, configuration
+
+TIMEZONE = pytz.timezone(configuration.get('core', 'TIMEZONE'))
 
 
 class DagRunOrder(object):
+
     def __init__(self, run_id=None, payload=None):
         self.run_id = run_id
         self.payload = payload
@@ -32,6 +37,7 @@ class TriggerDagRunOperator(BaseOperator):
     template_fields = tuple()
     template_ext = tuple()
     ui_color = '#ffefeb'
+
     @apply_defaults
     def __init__(
             self,
@@ -43,7 +49,7 @@ class TriggerDagRunOperator(BaseOperator):
         self.trigger_dag_id = trigger_dag_id
 
     def execute(self, context):
-        dro = DagRunOrder(run_id='trig__' + datetime.now().isoformat())
+        dro = DagRunOrder(run_id='trig__' + datetime.now(TIMEZONE).isoformat())
         dro = self.python_callable(context, dro)
         if dro:
             session = settings.Session()

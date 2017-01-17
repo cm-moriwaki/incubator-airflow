@@ -34,12 +34,14 @@ import json
 import logging
 import os
 import pickle
+import pytz
 import re
 import signal
 import socket
 import sys
 import traceback
 import warnings
+from datetime import datetime
 from urllib.parse import urlparse
 
 from sqlalchemy import (
@@ -70,6 +72,7 @@ from airflow.utils.trigger_rule import TriggerRule
 Base = declarative_base()
 ID_LEN = 250
 SQL_ALCHEMY_CONN = configuration.get('core', 'SQL_ALCHEMY_CONN')
+TIMEZONE = pytz.timezone(configuration.get('core', 'TIMEZONE'))
 DAGS_FOLDER = os.path.expanduser(configuration.get('core', 'DAGS_FOLDER'))
 XCOM_RETURN_KEY = 'return_value'
 
@@ -118,7 +121,7 @@ def clear_task_instances(tis, session, activate_dag_runs=True):
         ).all()
         for dr in drs:
             dr.state = State.RUNNING
-            dr.start_date = datetime.now()
+            dr.start_date = datetime.now(TIMEZONE)
 
 
 class DagBag(LoggingMixin):
@@ -143,6 +146,7 @@ class DagBag(LoggingMixin):
         by the scheduler job only
     :type sync_to_db: bool
     """
+
     def __init__(
             self,
             dag_folder=None,
@@ -306,7 +310,7 @@ class DagBag(LoggingMixin):
         TI = TaskInstance
         secs = (
             configuration.getint('scheduler', 'job_heartbeat_sec') * 3) + 120
-        limit_dttm = datetime.now() - timedelta(seconds=secs)
+        limit_dttm = datetime.now(TIMEZONE) - timedelta(seconds=secs)
         self.logger.info(
             "Failing jobs without heartbeat after {}".format(limit_dttm))
 
@@ -339,7 +343,7 @@ class DagBag(LoggingMixin):
         """
         self.dags[dag.dag_id] = dag
         dag.resolve_template_files()
-        dag.last_loaded = datetime.now()
+        dag.last_loaded = datetime.now(TIMEZONE)
 
         for task in dag.tasks:
             settings.policy(task)
@@ -379,7 +383,7 @@ class DagBag(LoggingMixin):
         ignoring files that match any of the regex patterns specified
         in the file.
         """
-        start_dttm = datetime.now()
+        start_dttm = datetime.now(TIMEZONE)
         dag_folder = dag_folder or self.dag_folder
         if os.path.isfile(dag_folder):
             self.process_file(dag_folder, only_if_updated=only_if_updated)
@@ -407,7 +411,7 @@ class DagBag(LoggingMixin):
                     except Exception as e:
                         logging.warning(e)
         Stats.gauge(
-            'collect_dags', (datetime.now() - start_dttm).total_seconds(), 1)
+            'collect_dags', (datetime.now(TIMEZONE) - start_dttm).total_seconds(), 1)
         Stats.gauge(
             'dagbag_size', len(self.dags), 1)
         Stats.gauge(
@@ -611,7 +615,7 @@ class DagPickle(Base):
     """
     id = Column(Integer, primary_key=True)
     pickle = Column(PickleType(pickler=dill))
-    created_dttm = Column(DateTime, default=func.now())
+    created_dttm = Column(DateTime(True), default=datetime.now(TIMEZONE))
     pickle_hash = Column(Text)
 
     __tablename__ = "dag_pickle"
@@ -642,9 +646,9 @@ class TaskInstance(Base):
 
     task_id = Column(String(ID_LEN), primary_key=True)
     dag_id = Column(String(ID_LEN), primary_key=True)
-    execution_date = Column(DateTime, primary_key=True)
-    start_date = Column(DateTime)
-    end_date = Column(DateTime)
+    execution_date = Column(DateTime(True), primary_key=True)
+    start_date = Column(DateTime(True))
+    end_date = Column(DateTime(True))
     duration = Column(Float)
     state = Column(String(20))
     try_number = Column(Integer, default=0)
@@ -655,7 +659,7 @@ class TaskInstance(Base):
     queue = Column(String(50))
     priority_weight = Column(Integer)
     operator = Column(String(1000))
-    queued_dttm = Column(DateTime)
+    queued_dttm = Column(DateTime(True))
 
     __table_args__ = (
         Index('ti_dag_state', dag_id, state),
@@ -823,8 +827,8 @@ class TaskInstance(Base):
 
     def set_state(self, state, session):
         self.state = state
-        self.start_date = datetime.now()
-        self.end_date = datetime.now()
+        self.start_date = datetime.now(TIMEZONE)
+        self.end_date = datetime.now(TIMEZONE)
         session.merge(self)
         session.commit()
 
@@ -853,7 +857,7 @@ class TaskInstance(Base):
         :type flag_upstream_failed: boolean
         """
         # is the execution date in the future?
-        if self.execution_date > datetime.now():
+        if self.execution_date > datetime.now(TIMEZONE):
             return False
         # is the task still in the retry waiting period?
         elif self.is_premature():
@@ -877,7 +881,6 @@ class TaskInstance(Base):
         # anything else
         else:
             return False
-
 
     def is_premature(self):
         """
@@ -982,11 +985,11 @@ class TaskInstance(Base):
                     self.set_state(State.SKIPPED, session)
 
         return (
-             (tr == TR.ONE_SUCCESS and successes > 0) or
-             (tr == TR.ONE_FAILED and (failed or upstream_failed)) or
-             (tr == TR.ALL_SUCCESS and successes >= upstream) or
-             (tr == TR.ALL_FAILED and failed + upstream_failed >= upstream) or
-             (tr == TR.ALL_DONE and upstream_done)
+            (tr == TR.ONE_SUCCESS and successes > 0) or
+            (tr == TR.ONE_FAILED and (failed or upstream_failed)) or
+            (tr == TR.ALL_SUCCESS and successes >= upstream) or
+            (tr == TR.ALL_FAILED and failed + upstream_failed >= upstream) or
+            (tr == TR.ALL_DONE and upstream_done)
         )
 
     @provide_session
@@ -1026,7 +1029,7 @@ class TaskInstance(Base):
                 TI.dag_id == self.dag_id,
                 TI.task_id == task.task_id,
                 TI.execution_date ==
-                    self.task.dag.previous_schedule(self.execution_date),
+                self.task.dag.previous_schedule(self.execution_date),
                 TI.state.in_({State.SUCCESS, State.SKIPPED}),
             ).first()
             if not previous_ti:
@@ -1090,7 +1093,7 @@ class TaskInstance(Base):
         to be retried.
         """
         return self.state == State.UP_FOR_RETRY and \
-            self.end_date + self.task.retry_delay < datetime.now()
+            self.end_date + self.task.retry_delay < datetime.now(TIMEZONE)
 
     @provide_session
     def pool_full(self, session):
@@ -1138,7 +1141,7 @@ class TaskInstance(Base):
         self.refresh_from_db(session=session, lock_for_update=True)
         self.clear_xcom_data()
         self.job_id = job_id
-        iso = datetime.now().isoformat()
+        iso = datetime.now(TIMEZONE).isoformat()
         self.hostname = socket.gethostname()
         self.operator = task.__class__.__name__
 
@@ -1174,7 +1177,7 @@ class TaskInstance(Base):
             msg = "Starting attempt {attempt} of {total}".format(
                 attempt=self.try_number % (task.retries + 1) + 1,
                 total=task.retries + 1)
-            self.start_date = datetime.now()
+            self.start_date = datetime.now(TIMEZONE)
 
             if not mark_success and self.state != State.QUEUED and (
                     self.pool or self.task.dag.concurrency_reached):
@@ -1186,7 +1189,7 @@ class TaskInstance(Base):
                     total=task.retries + 1)
                 logging.info(HR + msg + HR)
 
-                self.queued_dttm = datetime.now()
+                self.queued_dttm = datetime.now(TIMEZONE)
                 session.merge(self)
                 session.commit()
                 logging.info("Queuing into pool {}".format(self.pool))
@@ -1257,7 +1260,7 @@ class TaskInstance(Base):
                 raise
 
             # Recording SUCCESS
-            self.end_date = datetime.now()
+            self.end_date = datetime.now(TIMEZONE)
             self.set_duration()
             if not test_mode:
                 session.add(Log(self.state, self))
@@ -1286,7 +1289,7 @@ class TaskInstance(Base):
         logging.exception(error)
         task = self.task
         session = settings.Session()
-        self.end_date = datetime.now()
+        self.end_date = datetime.now(TIMEZONE)
         self.set_duration()
         if not test_mode:
             session.add(Log(State.FAILED, self))
@@ -1522,16 +1525,16 @@ class Log(Base):
     __tablename__ = "log"
 
     id = Column(Integer, primary_key=True)
-    dttm = Column(DateTime)
+    dttm = Column(DateTime(True))
     dag_id = Column(String(ID_LEN))
     task_id = Column(String(ID_LEN))
     event = Column(String(30))
-    execution_date = Column(DateTime)
+    execution_date = Column(DateTime(True))
     owner = Column(String(500))
     extra = Column(Text)
 
     def __init__(self, event, task_instance, owner=None, extra=None, **kwargs):
-        self.dttm = datetime.now()
+        self.dttm = datetime.now(TIMEZONE)
         self.event = event
         self.extra = extra
 
@@ -1735,7 +1738,7 @@ class BaseOperator(object):
                 "The trigger_rule must be one of {all_triggers},"
                 "'{d}.{t}'; received '{tr}'."
                 .format(all_triggers=TriggerRule.all_triggers,
-                        d=dag.dag_id, t=task_id, tr = trigger_rule))
+                        d=dag.dag_id, t=task_id, tr=trigger_rule))
 
         self.trigger_rule = trigger_rule
         self.depends_on_past = depends_on_past
@@ -2100,7 +2103,7 @@ class BaseOperator(object):
         range.
         """
         TI = TaskInstance
-        end_date = end_date or datetime.now()
+        end_date = end_date or datetime.now(TIMEZONE)
         return session.query(TI).filter(
             TI.dag_id == self.dag_id,
             TI.task_id == self.task_id,
@@ -2148,7 +2151,7 @@ class BaseOperator(object):
         Run a set of task instances for a date range.
         """
         start_date = start_date or self.start_date
-        end_date = end_date or self.end_date or datetime.now()
+        end_date = end_date or self.end_date or datetime.now(TIMEZONE)
 
         for dt in self.dag.date_range(start_date, end_date=end_date):
             TaskInstance(self, dt).run(
@@ -2296,12 +2299,12 @@ class DagModel(Base):
     # Whether that DAG was seen on the last DagBag load
     is_active = Column(Boolean, default=False)
     # Last time the scheduler started
-    last_scheduler_run = Column(DateTime)
+    last_scheduler_run = Column(DateTime(True))
     # Last time this DAG was pickled
-    last_pickled = Column(DateTime)
+    last_pickled = Column(DateTime(True))
     # When the DAG received a refreshed signal last, used to know when
     # we need to force refresh
-    last_expired = Column(DateTime)
+    last_expired = Column(DateTime(True))
     # Whether (one  of) the scheduler is scheduling this DAG at the moment
     scheduler_lock = Column(Boolean)
     # Foreign key to the latest pickle_id
@@ -2429,7 +2432,7 @@ class DAG(LoggingMixin):
             template_searchpath = [template_searchpath]
         self.template_searchpath = template_searchpath
         self.parent_dag = None  # Gets set when DAGs are loaded
-        self.last_loaded = datetime.now()
+        self.last_loaded = datetime.now(TIMEZONE)
         self.safe_dag_id = dag_id.replace('.', '__dot__')
         self.concurrency = concurrency
         self.max_active_runs = max_active_runs
@@ -2491,7 +2494,7 @@ class DAG(LoggingMixin):
 
     # /Context Manager ----------------------------------------------
 
-    def date_range(self, start_date, num=None, end_date=datetime.now()):
+    def date_range(self, start_date, num=None, end_date=datetime.now(TIMEZONE)):
         if num:
             end_date = None
         return utils_date_range(
@@ -2752,9 +2755,9 @@ class DAG(LoggingMixin):
             self, session, start_date=None, end_date=None, state=None):
         TI = TaskInstance
         if not start_date:
-            start_date = (datetime.today()-timedelta(30)).date()
+            start_date = (datetime.today() - timedelta(30)).date()
             start_date = datetime.combine(start_date, datetime.min.time())
-        end_date = end_date or datetime.now()
+        end_date = end_date or datetime.now(TIMEZONE)
         tis = session.query(TI).filter(
             TI.dag_id == self.dag_id,
             TI.execution_date >= start_date,
@@ -2902,10 +2905,10 @@ class DAG(LoggingMixin):
         d = {}
         d['is_picklable'] = True
         try:
-            dttm = datetime.now()
+            dttm = datetime.now(TIMEZONE)
             pickled = pickle.dumps(self)
             d['pickle_len'] = len(pickled)
-            d['pickling_duration'] = "{}".format(datetime.now() - dttm)
+            d['pickling_duration'] = "{}".format(datetime.now(TIMEZONE) - dttm)
         except Exception as e:
             logging.exception(e)
             d['is_picklable'] = False
@@ -2923,7 +2926,7 @@ class DAG(LoggingMixin):
         if not dp or dp.pickle != self:
             dp = DagPickle(dag=self)
             session.add(dp)
-            self.last_pickled = datetime.now()
+            self.last_pickled = datetime.now(TIMEZONE)
             session.commit()
             self.pickle_id = dp.id
 
@@ -2955,7 +2958,7 @@ class DAG(LoggingMixin):
             task.start_date = self.start_date
 
         if task.task_id in self.task_dict:
-            #TODO raise an error in Airflow 2.0
+            # TODO raise an error in Airflow 2.0
             warnings.warn(
                 'The requested task could not be added to the DAG because a '
                 'task with task_id {} is already in the DAG. Starting in '
@@ -3051,7 +3054,7 @@ class Chart(Base):
         "User", cascade=False, cascade_backrefs=False, backref='charts')
     x_is_date = Column(Boolean, default=True)
     iteration_no = Column(Integer, default=0)
-    last_modified = Column(DateTime, default=func.now())
+    last_modified = Column(DateTime(True), default=datetime.now(TIMEZONE))
 
     def __repr__(self):
         return self.label
@@ -3072,8 +3075,8 @@ class KnownEvent(Base):
 
     id = Column(Integer, primary_key=True)
     label = Column(String(200))
-    start_date = Column(DateTime)
-    end_date = Column(DateTime)
+    start_date = Column(DateTime(True))
+    end_date = Column(DateTime(True))
     user_id = Column(Integer(), ForeignKey('users.id'),)
     known_event_type_id = Column(Integer(), ForeignKey('known_event_type.id'),)
     reported_by = relationship(
@@ -3122,6 +3125,7 @@ class Variable(Base):
     def val(cls):
         return synonym('_val',
                        descriptor=property(cls.get_val, cls.set_val))
+
     @classmethod
     @provide_session
     def get(cls, key, default_var=None, deserialize_json=False, session=None):
@@ -3161,8 +3165,8 @@ class XCom(Base):
     key = Column(String(512))
     value = Column(PickleType(pickler=dill))
     timestamp = Column(
-        DateTime, default=func.now(), nullable=False)
-    execution_date = Column(DateTime, nullable=False)
+        DateTime(True), default=datetime.now(TIMEZONE), nullable=False)
+    execution_date = Column(DateTime(True), nullable=False)
 
     # source information
     task_id = Column(String(ID_LEN), nullable=False)
@@ -3300,9 +3304,9 @@ class DagRun(Base):
 
     id = Column(Integer, primary_key=True)
     dag_id = Column(String(ID_LEN))
-    execution_date = Column(DateTime, default=func.now())
-    start_date = Column(DateTime, default=func.now())
-    end_date = Column(DateTime)
+    execution_date = Column(DateTime(True), default=datetime.now(TIMEZONE))
+    start_date = Column(DateTime(True), default=datetime.now(TIMEZONE))
+    end_date = Column(DateTime(True))
     state = Column(String(50), default=State.RUNNING)
     run_id = Column(String(ID_LEN))
     external_trigger = Column(Boolean, default=True)
@@ -3384,9 +3388,9 @@ class SlaMiss(Base):
 
     task_id = Column(String(ID_LEN), primary_key=True)
     dag_id = Column(String(ID_LEN), primary_key=True)
-    execution_date = Column(DateTime, primary_key=True)
+    execution_date = Column(DateTime(True), primary_key=True)
     email_sent = Column(Boolean, default=False)
-    timestamp = Column(DateTime)
+    timestamp = Column(DateTime(True))
     description = Column(Text)
     notification_sent = Column(Boolean, default=False)
 
@@ -3398,6 +3402,6 @@ class SlaMiss(Base):
 class ImportError(Base):
     __tablename__ = "import_error"
     id = Column(Integer, primary_key=True)
-    timestamp = Column(DateTime)
+    timestamp = Column(DateTime(True))
     filename = Column(String(1024))
     stacktrace = Column(Text)

@@ -28,12 +28,15 @@ from airflow import configuration as conf
 
 
 class DummyStatsLogger(object):
+
     @classmethod
     def incr(cls, stat, count=1, rate=1):
         pass
+
     @classmethod
     def decr(cls, stat, count=1, rate=1):
         pass
+
     @classmethod
     def gauge(cls, stat, value, rate=1, delta=False):
         pass
@@ -49,7 +52,6 @@ if conf.getboolean('scheduler', 'statsd_on'):
     Stats = statsd
 else:
     Stats = DummyStatsLogger
-
 
 
 HEADER = """\
@@ -73,6 +75,7 @@ if 'sqlite' not in SQL_ALCHEMY_CONN:
     engine_args['pool_recycle'] = conf.getint('core',
                                               'SQL_ALCHEMY_POOL_RECYCLE')
 
+engine_args['echo'] = True
 engine = create_engine(SQL_ALCHEMY_CONN, **engine_args)
 Session = scoped_session(
     sessionmaker(autocommit=False, autoflush=False, bind=engine))

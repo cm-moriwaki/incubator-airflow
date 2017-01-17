@@ -2,10 +2,15 @@ from builtins import str
 from datetime import datetime
 import logging
 
+import pytz
+
+from airflow import configuration
 from airflow.models import BaseOperator, TaskInstance
 from airflow.utils.state import State
 from airflow.utils.decorators import apply_defaults
 from airflow import settings
+
+TIMEZONE = pytz.timezone(configuration.get('core', 'TIMEZONE'))
 
 
 class PythonOperator(BaseOperator):
@@ -87,6 +92,7 @@ class BranchPythonOperator(PythonOperator):
     ``skipped`` states propagates where all directly upstream tasks are
     ``skipped``.
     """
+
     def execute(self, context):
         branch = super(BranchPythonOperator, self).execute(context)
         logging.info("Following branch " + branch)
@@ -97,8 +103,8 @@ class BranchPythonOperator(PythonOperator):
                 ti = TaskInstance(
                     task, execution_date=context['ti'].execution_date)
                 ti.state = State.SKIPPED
-                ti.start_date = datetime.now()
-                ti.end_date = datetime.now()
+                ti.start_date = datetime.now(TIMEZONE)
+                ti.end_date = datetime.now(TIMEZONE)
                 session.merge(ti)
         session.commit()
         session.close()
@@ -117,6 +123,7 @@ class ShortCircuitOperator(PythonOperator):
 
     The condition is determined by the result of `python_callable`.
     """
+
     def execute(self, context):
         condition = super(ShortCircuitOperator, self).execute(context)
         logging.info("Condition result is {}".format(condition))
@@ -130,8 +137,8 @@ class ShortCircuitOperator(PythonOperator):
                 ti = TaskInstance(
                     task, execution_date=context['ti'].execution_date)
                 ti.state = State.SKIPPED
-                ti.start_date = datetime.now()
-                ti.end_date = datetime.now()
+                ti.start_date = datetime.now(TIMEZONE)
+                ti.end_date = datetime.now(TIMEZONE)
                 session.merge(ti)
             session.commit()
             session.close()

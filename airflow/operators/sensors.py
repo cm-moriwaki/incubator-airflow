@@ -7,12 +7,16 @@ import logging
 from urllib.parse import urlparse
 from time import sleep
 
-from airflow import hooks, settings
+import pytz
+
+from airflow import hooks, settings, configuration
 from airflow.exceptions import AirflowException, AirflowSensorTimeout, AirflowSkipException
 from airflow.models import BaseOperator, TaskInstance, Connection as DB
 from airflow.hooks import BaseHook
 from airflow.utils.state import State
 from airflow.utils.decorators import apply_defaults
+
+TIMEZONE = pytz.timezone(configuration.get('core', 'TIMEZONE'))
 
 
 class BaseSensorOperator(BaseOperator):
@@ -36,7 +40,7 @@ class BaseSensorOperator(BaseOperator):
     def __init__(
             self,
             poke_interval=60,
-            timeout=60*60*24*7,
+            timeout=60 * 60 * 24 * 7,
             soft_fail=False,
             *args, **kwargs):
         super(BaseSensorOperator, self).__init__(*args, **kwargs)
@@ -52,10 +56,10 @@ class BaseSensorOperator(BaseOperator):
         raise AirflowException('Override me.')
 
     def execute(self, context):
-        started_at = datetime.now()
+        started_at = datetime.now(TIMEZONE)
         while not self.poke(context):
             sleep(self.poke_interval)
-            if (datetime.now() - started_at).seconds > self.timeout:
+            if (datetime.now(TIMEZONE) - started_at).seconds > self.timeout:
                 if self.soft_fail:
                     raise AirflowSkipException('Snap. Time is OUT.')
                 else:
@@ -231,7 +235,7 @@ class HivePartitionSensor(BaseSensorOperator):
             table, partition="ds='{{ ds }}'",
             metastore_conn_id='metastore_default',
             schema='default',
-            poke_interval=60*3,
+            poke_interval=60 * 3,
             *args, **kwargs):
         super(HivePartitionSensor, self).__init__(
             poke_interval=poke_interval, *args, **kwargs)
@@ -432,7 +436,7 @@ class TimeSensor(BaseSensorOperator):
     def poke(self, context):
         logging.info(
             'Checking if the time ({0}) has come'.format(self.target_time))
-        return datetime.now().time() > self.target_time
+        return datetime.now(TIMEZONE).time() > self.target_time
 
 
 class TimeDeltaSensor(BaseSensorOperator):
@@ -457,7 +461,7 @@ class TimeDeltaSensor(BaseSensorOperator):
         target_dttm = dag.following_schedule(context['execution_date'])
         target_dttm += self.delta
         logging.info('Checking if the time ({0}) has come'.format(target_dttm))
-        return datetime.now() > target_dttm
+        return datetime.now(TIMEZONE) > target_dttm
 
 
 class HttpSensor(BaseSensorOperator):

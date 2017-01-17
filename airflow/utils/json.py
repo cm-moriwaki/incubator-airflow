@@ -34,10 +34,11 @@ def json_ser(obj):
 
 
 class AirflowJsonEncoder(json.JSONEncoder):
+
     def default(self, obj):
         # convert dates and numpy objects in a json serializable format
         if isinstance(obj, datetime):
-            return obj.strftime('%Y-%m-%dT%H:%M:%SZ')
+            return obj.strftime('%Y-%m-%dT%H:%M:%S%Z')
         elif isinstance(obj, date):
             return obj.strftime('%Y-%m-%d')
         elif type(obj) in [np.int_, np.intc, np.intp, np.int8, np.int16,

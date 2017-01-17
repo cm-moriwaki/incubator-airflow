@@ -23,6 +23,10 @@ import six
 
 from croniter import croniter
 
+from airflow import configuration
+import pytz
+TIMEZONE = pytz.timezone(configuration.get('core', 'TIMEZONE'))
+
 
 cron_presets = {
     '@hourly': '0 * * * *',
@@ -66,7 +70,7 @@ def date_range(
     if end_date and num:
         raise Exception("Wait. Either specify end_date OR num")
     if not end_date and not num:
-        end_date = datetime.now()
+        end_date = datetime.now(TIMEZONE)
 
     delta_iscron = False
     if isinstance(delta, six.string_types):
@@ -141,7 +145,7 @@ def round_time(dt, delta, start_date=datetime.min):
     # We first search an upper limit for i for which start_date + upper * delta
     # exceeds dt.
     upper = 1
-    while start_date + upper*delta < dt:
+    while start_date + upper * delta < dt:
         # To speed up finding an upper limit we grow this exponentially by a
         # factor of 2
         upper *= 2
@@ -158,20 +162,20 @@ def round_time(dt, delta, start_date=datetime.min):
         # Invariant: start + lower * delta < dt <= start + upper * delta
         # If start_date + (lower + 1)*delta exceeds dt, then either lower or
         # lower+1 has to be the solution we are searching for
-        if start_date + (lower + 1)*delta >= dt:
+        if start_date + (lower + 1) * delta >= dt:
             # Check if start_date + (lower + 1)*delta or
             # start_date + lower*delta is closer to dt and return the solution
             if (
                     (start_date + (lower + 1) * delta) - dt <=
                     dt - (start_date + lower * delta)):
-                return start_date + (lower + 1)*delta
+                return start_date + (lower + 1) * delta
             else:
                 return start_date + lower * delta
 
         # We intersect the interval and either replace the lower or upper
         # limit with the candidate
         candidate = lower + (upper - lower) // 2
-        if start_date + candidate*delta >= dt:
+        if start_date + candidate * delta >= dt:
             upper = candidate
         else:
             lower = candidate

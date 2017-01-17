@@ -18,6 +18,8 @@ from daemon.pidfile import TimeoutPIDLockFile
 import signal
 import sys
 
+import pytz
+
 import airflow
 from airflow import jobs, settings
 from airflow import configuration as conf
@@ -29,6 +31,7 @@ from airflow.utils.state import State
 from airflow.exceptions import AirflowException
 
 DAGS_FOLDER = os.path.expanduser(conf.get('core', 'DAGS_FOLDER'))
+TIMEZONE = pytz.timezone(conf.get('core', 'TIMEZONE'))
 
 
 def sigint_handler(signal, frame):
@@ -48,13 +51,17 @@ def setup_logging(filename):
 
 def setup_locations(process, pid=None, stdout=None, stderr=None, log=None):
     if not stderr:
-        stderr = os.path.join(os.path.expanduser(settings.AIRFLOW_HOME), "airflow-{}.err".format(process))
+        stderr = os.path.join(os.path.expanduser(settings.AIRFLOW_HOME),
+                              "airflow-{}.err".format(process))
     if not stdout:
-        stdout = os.path.join(os.path.expanduser(settings.AIRFLOW_HOME), "airflow-{}.out".format(process))
+        stdout = os.path.join(os.path.expanduser(settings.AIRFLOW_HOME),
+                              "airflow-{}.out".format(process))
     if not log:
-        log = os.path.join(os.path.expanduser(settings.AIRFLOW_HOME), "airflow-{}.log".format(process))
+        log = os.path.join(os.path.expanduser(settings.AIRFLOW_HOME),
+                           "airflow-{}.log".format(process))
     if not pid:
-        pid = os.path.join(os.path.expanduser(settings.AIRFLOW_HOME), "airflow-{}.pid".format(process))
+        pid = os.path.join(os.path.expanduser(settings.AIRFLOW_HOME),
+                           "airflow-{}.pid".format(process))
 
     return pid, stdout, stderr, log
 
@@ -120,7 +127,7 @@ def backfill(args, dag=None):
 def trigger_dag(args):
     session = settings.Session()
     # TODO: verify dag_id
-    execution_date = datetime.now()
+    execution_date = datetime.now(TIMEZONE)
     run_id = args.run_id or "manual__{0}".format(execution_date.isoformat())
     dr = session.query(DagRun).filter(
         DagRun.dag_id == args.dag_id, DagRun.run_id == run_id).first()
@@ -433,7 +440,8 @@ def scheduler(args):
         do_pickle=args.do_pickle)
 
     if args.daemon:
-        pid, stdout, stderr, log_file = setup_locations("scheduler", args.pid, args.stdout, args.stderr, args.log_file)
+        pid, stdout, stderr, log_file = setup_locations(
+            "scheduler", args.pid, args.stdout, args.stderr, args.log_file)
         handle = setup_logging(log_file)
         stdout = open(stdout, 'w+')
         stderr = open(stderr, 'w+')
@@ -491,7 +499,8 @@ def worker(args):
     }
 
     if args.daemon:
-        pid, stdout, stderr, log_file = setup_locations("worker", args.pid, args.stdout, args.stderr, args.log_file)
+        pid, stdout, stderr, log_file = setup_locations(
+            "worker", args.pid, args.stdout, args.stderr, args.log_file)
         handle = setup_logging(log_file)
         stdout = open(stdout, 'w+')
         stderr = open(stderr, 'w+')
@@ -554,7 +563,8 @@ def flower(args):
         api = '--broker_api=' + args.broker_api
 
     if args.daemon:
-        pid, stdout, stderr, log_file = setup_locations("flower", args.pid, args.stdout, args.stderr, args.log_file)
+        pid, stdout, stderr, log_file = setup_locations(
+            "flower", args.pid, args.stdout, args.stderr, args.log_file)
         stdout = open(stdout, 'w+')
         stderr = open(stderr, 'w+')
 
@@ -581,7 +591,8 @@ def kerberos(args):  # noqa
     import airflow.security.kerberos
 
     if args.daemon:
-        pid, stdout, stderr, log_file = setup_locations("kerberos", args.pid, args.stdout, args.stderr, args.log_file)
+        pid, stdout, stderr, log_file = setup_locations(
+            "kerberos", args.pid, args.stdout, args.stderr, args.log_file)
         stdout = open(stdout, 'w+')
         stderr = open(stderr, 'w+')
 
