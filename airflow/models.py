@@ -2856,7 +2856,11 @@ class DAG(LoggingMixin):
         for k, v in list(self.__dict__.items()):
             if k not in ('user_defined_macros', 'params'):
                 print("K: {} V: {}".format(k, v))
-                setattr(result, k, copy.deepcopy(v, memo))
+                try:
+                    setattr(result, k, copy.deepcopy(v, memo))
+                except AttributeError:
+                    # TESTME
+                    setattr(result, k, v)
 
         result.user_defined_macros = self.user_defined_macros
         result.params = self.params
