@@ -667,6 +667,47 @@ class Airflow(BaseView):
             root=request.args.get('root'),
             demo_mode=conf.getboolean('webserver', 'demo_mode'))
 
+    @expose('/dag_edit')
+    @login_required
+    def dag_edit(self):
+        dag_id = request.args.get('dag_id')
+        dag = dagbag.get_dag(dag_id)
+        # for test @@@@
+
+        class Hoge():
+            pass
+        target_tables = []
+        target_tables.append(Hoge())
+        target_tables[-1].csa_job_name = u'ジョブA'
+        target_tables[-1].csa_is_master = True
+        target_tables[-1].csa_schema_name = u'test'
+        target_tables[-1].csa_table_name = u'users'
+        target_tables[-1].csa_s3_key_prefix = u'users/'
+        target_tables[-1].csa_s3_sort_keys = None
+        target_tables[-1].csa_s3_dist_style = None
+        target_tables.append(Hoge())
+        target_tables[-1].csa_job_name = u'ジョブA'
+        target_tables[-1].csa_is_master = False
+        target_tables[-1].csa_schema_name = u'test2'
+        target_tables[-1].csa_table_name = u'users2'
+        target_tables[-1].csa_s3_key_prefix = u'users2/'
+        target_tables[-1].csa_s3_sort_keys = '1,2,3'
+        target_tables[-1].csa_s3_dist_style = u'even'
+        target_tables.append(Hoge())
+        target_tables[-1].csa_job_name = u'ジョブB'
+        target_tables[-1].csa_is_master = True
+        target_tables[-1].csa_schema_name = u'public'
+        target_tables[-1].csa_table_name = u'aaaaa'
+        target_tables[-1].csa_s3_key_prefix = u'abbbdd/'
+        target_tables[-1].csa_s3_sort_keys = '1'
+        target_tables[-1].csa_s3_dist_style = u'1'
+
+        dag.csa_target_tables = target_tables
+        # for test end
+        return self.render(
+            'airflow/dag_edit.html',
+            dag=dag,)
+
     @expose('/dag_details')
     @login_required
     def dag_details(self):
@@ -1008,37 +1049,50 @@ class Airflow(BaseView):
         task = dag.get_task(task_id)
 
         execution_date = request.args.get('execution_date')
+        print("@@@clear 1@@@", execution_date)
         execution_date = dateutil.parser.parse(execution_date)
+        print("@@@clear 2@@@", execution_date)
         confirmed = request.args.get('confirmed') == "true"
         upstream = request.args.get('upstream') == "true"
         downstream = request.args.get('downstream') == "true"
         future = request.args.get('future') == "true"
         past = request.args.get('past') == "true"
 
+        print("@@@clear 3@@@", execution_date)
         dag = dag.sub_dag(
             task_regex=r"^{0}$".format(task_id),
             include_downstream=downstream,
             include_upstream=upstream)
+        print("@@@clear 4@@@", execution_date)
 
         end_date = execution_date if not future else None
         start_date = execution_date if not past else None
         if confirmed:
+            print("@@@ a 1 @@@")
             count = dag.clear(
                 start_date=start_date,
                 end_date=end_date)
+            print("@@@ a 2 @@@")
 
             flash("{0} task instances have been cleared".format(count))
+            print("@@@ a 3 @@@")
             return redirect(origin)
         else:
+            print("@@@ b 1 @@@")
             tis = dag.clear(
                 start_date=start_date,
                 end_date=end_date,
                 dry_run=True)
+            print("@@@ b 2 @@@")
             if not tis:
+                print("@@@ b 3 @@@")
                 flash("No task instances to clear", 'error')
+                print("@@@ b 4 @@@")
                 response = redirect(origin)
             else:
+                print("@@@ b 5 @@@")
                 details = "\n".join([str(t) for t in tis])
+                print("@@@ b 6 @@@")
 
                 response = self.render(
                     'airflow/confirm.html',
@@ -1046,6 +1100,7 @@ class Airflow(BaseView):
                         "Here's the list of task instances you are about "
                         "to clear:"),
                     details=details,)
+                print("@@@ b 7 @@@")
 
             return response
 

@@ -2557,6 +2557,10 @@ class DAG(LoggingMixin):
         return ", ".join(list(set([t.owner for t in self.tasks])))
 
     @property
+    def schedule_interval_pp(self):
+        return self.schedule_interval
+
+    @property
     @provide_session
     def concurrency_reached(self, session=None):
         """
