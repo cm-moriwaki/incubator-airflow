@@ -672,6 +672,7 @@ class Airflow(BaseView):
     def dag_edit(self):
         dag_id = request.args.get('dag_id')
         dag = dagbag.get_dag(dag_id)
+        title = u'タスク編集'
         # for test @@@@
 
         class Hoge():
@@ -706,6 +707,7 @@ class Airflow(BaseView):
         # for test end
         return self.render(
             'airflow/dag_edit.html',
+            title=title,
             dag=dag,)
 
     @expose('/dag_details')
