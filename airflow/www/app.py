@@ -54,14 +54,14 @@ def create_app(config=None):
         from airflow.www import views
 
         admin = Admin(
-            app, name='Airflow',
+            app, name='CSA',
             static_url_path='/admin',
-            index_view=views.HomeView(endpoint='', url='/admin', name="DAGs"),
+            index_view=views.HomeView(endpoint='', url='/admin', name=u"タスク"),
             template_mode='bootstrap3',
         )
         av = admin.add_view
         vs = views
-        av(vs.Airflow(name='DAGs', category='DAGs'))
+        av(vs.Airflow(name=u'タスク', category=u'タスク'))
 
         # av(vs.QueryView(name='Ad Hoc Query', category="Data Profiling"))
         # av(vs.ChartModelView(
@@ -71,62 +71,62 @@ def create_app(config=None):
         #     Session, name="Known Events", category="Data Profiling"))
         # av(vs.SlaMissModelView(
         #     models.SlaMiss,
-        #     Session, name="SLA Misses", category="Browse"))
+        #     Session, name="SLA Misses", category=u"ブラウズ"))
         # av(vs.TaskInstanceModelView(models.TaskInstance,
-        # Session, name = "Task Instances", category = "Browse"))
+        #                             Session, name="Task Instances", category=u"ブラウズ"))
         av(vs.LogModelView(
-            models.Log, Session, name="Logs", category="Browse"))
+            models.Log, Session, name="Logs", category=u"ブラウズ"))
         # av(vs.JobModelView(
-        #     jobs.BaseJob, Session, name="Jobs", category="Browse"))
-        # av(vs.PoolModelView(
-        #     models.Pool, Session, name="Pools", category="Admin"))
-        # av(vs.ConfigurationView(
-        #     name='Configuration', category="Admin"))
-        # av(vs.UserModelView(
-        #     models.User, Session, name="Users", category="Admin"))
-        # av(vs.ConnectionModelView(
-        #     models.Connection, Session, name="Connections", category="Admin"))
-        # av(vs.VariableView(
-        #     models.Variable, Session, name="Variables", category="Admin"))
+        #     jobs.BaseJob, Session, name="Jobs", category=u"ブラウズ"))
+# av(vs.PoolModelView(
+#     models.Pool, Session, name="Pools", category="Admin"))
+# av(vs.ConfigurationView(
+#     name='Configuration', category="Admin"))
+# av(vs.UserModelView(
+#     models.User, Session, name="Users", category="Admin"))
+# av(vs.ConnectionModelView(
+#     models.Connection, Session, name="Connections", category="Admin"))
+# av(vs.VariableView(
+#     models.Variable, Session, name="Variables", category="Admin"))
 
-        # admin.add_link(base.MenuLink(
-        #     category='Docs', name='Documentation',
-        #     url='http://pythonhosted.org/airflow/'))
-        # admin.add_link(
-        #     base.MenuLink(category='Docs',
-        #                   name='Github', url='https://github.com/airbnb/airflow'))
+# admin.add_link(base.MenuLink(
+#     category='Docs', name='Documentation',
+#     url='http://pythonhosted.org/airflow/'))
+# admin.add_link(
+#     base.MenuLink(category='Docs',
+#                   name='Github', url='https://github.com/airbnb/airflow'))
 
-        av(vs.DagRunModelView(
-            models.DagRun, Session, name="DAG Runs", category="Browse"))
-        av(vs.DagModelView(models.DagModel, Session, name=None))
-        # Hack to not add this view to the menu
-        admin._menu = admin._menu[:-1]
+    av(vs.DagRunModelView(
+        models.DagRun, Session, name="DAG Runs", category=u"ブラウズ"))
+    av(vs.DagModelView(models.DagModel, Session, name=None))
+    # Hack to not add this view to the menu
+    admin._menu = admin._menu[:-1]
 
-        def integrate_plugins():
-            """Integrate plugins to the context"""
-            from airflow.plugins_manager import (
-                admin_views, flask_blueprints, menu_links)
-            for v in admin_views:
-                admin.add_view(v)
-            for bp in flask_blueprints:
-                app.register_blueprint(bp)
-            for ml in menu_links:
-                admin.add_link(ml)
+    def integrate_plugins():
+        """Integrate plugins to the context"""
+        from airflow.plugins_manager import (
+            admin_views, flask_blueprints, menu_links)
+        for v in admin_views:
+            admin.add_view(v)
+        for bp in flask_blueprints:
+            app.register_blueprint(bp)
+        for ml in menu_links:
+            admin.add_link(ml)
 
-        integrate_plugins()
+    integrate_plugins()
 
-        @app.context_processor
-        def jinja_globals():
-            return {
-                'hostname': socket.gethostname(),
-                'timezone': timezone,
-            }
+    @app.context_processor
+    def jinja_globals():
+        return {
+            'hostname': socket.gethostname(),
+            'timezone': timezone,
+        }
 
-        @app.teardown_appcontext
-        def shutdown_session(exception=None):
-            settings.Session.remove()
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        settings.Session.remove()
 
-        return app
+    return app
 
 app = None
 
