@@ -75,7 +75,7 @@ def create_app(config=None):
         # av(vs.TaskInstanceModelView(models.TaskInstance,
         #                             Session, name="Task Instances", category=u"ブラウズ"))
         av(vs.LogModelView(
-            models.Log, Session, name="Logs", category=u"ブラウズ"))
+            models.Log, Session, name=u"ログ", category=u"ブラウズ"))
         # av(vs.JobModelView(
         #     jobs.BaseJob, Session, name="Jobs", category=u"ブラウズ"))
 # av(vs.PoolModelView(
