@@ -72,10 +72,10 @@ def create_app(config=None):
         # av(vs.SlaMissModelView(
         #     models.SlaMiss,
         #     Session, name="SLA Misses", category=u"ブラウズ"))
-        # av(vs.TaskInstanceModelView(models.TaskInstance,
-        #                             Session, name="Task Instances", category=u"ブラウズ"))
-        av(vs.LogModelView(
-            models.Log, Session, name=u"ログ", category=u"ブラウズ"))
+        av(vs.TaskInstanceModelView(models.TaskInstance,
+                                    Session, name=u"実行履歴", category=u"ブラウズ"))
+        # av(vs.LogModelView(
+        #     models.Log, Session, name=u"ログ", category=u"ブラウズ"))
         # av(vs.JobModelView(
         #     jobs.BaseJob, Session, name="Jobs", category=u"ブラウズ"))
 # av(vs.PoolModelView(

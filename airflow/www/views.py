@@ -1629,7 +1629,7 @@ class Airflow(BaseView):
         session.close()
 
         dagbag.get_dag(dag_id)
-        flash("DAG [{}] is now fresh as a daisy".format(dag_id))
+        flash(u"タスク [{}] が更新されました。".format(dag_id))
         return redirect('/')
 
     @expose('/refresh_all')
