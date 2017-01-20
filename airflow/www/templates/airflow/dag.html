@@ -1,7 +1,7 @@
 {% extends "airflow/master.html" %}
 {% import 'admin/lib.html' as lib with context %}
 
-{% block title %}Airflow - DAG {{ dag.dag_id }}{% endblock %}
+{% block title %}CSA タスク {{ dag.dag_id }}{% endblock %}
 
 {% block head_css %}
   {{ super() }}

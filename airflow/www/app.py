@@ -54,14 +54,14 @@ def create_app(config=None):
         from airflow.www import views
 
         admin = Admin(
-            app, name='Airflow',
+            app, name='CSA',
             static_url_path='/admin',
-            index_view=views.HomeView(endpoint='', url='/admin', name="DAGs"),
+            index_view=views.HomeView(endpoint='', url='/admin', name=u"タスク"),
             template_mode='bootstrap3',
         )
         av = admin.add_view
         vs = views
-        av(vs.Airflow(name='DAGs', category='DAGs'))
+        av(vs.Airflow(name=u'タスク', category=u'タスク'))
 
         # av(vs.QueryView(name='Ad Hoc Query', category="Data Profiling"))
         # av(vs.ChartModelView(
@@ -71,13 +71,13 @@ def create_app(config=None):
         #     Session, name="Known Events", category="Data Profiling"))
         av(vs.SlaMissModelView(
             models.SlaMiss,
-            Session, name="SLA Misses", category="Browse"))
+            Session, name="SLA Misses", category=u"ブラウズ"))
         av(vs.TaskInstanceModelView(models.TaskInstance,
-                                    Session, name="Task Instances", category="Browse"))
+                                    Session, name="Task Instances", category=u"ブラウズ"))
         av(vs.LogModelView(
-            models.Log, Session, name="Logs", category="Browse"))
+            models.Log, Session, name="Logs", category=u"ブラウズ"))
         av(vs.JobModelView(
-            jobs.BaseJob, Session, name="Jobs", category="Browse"))
+            jobs.BaseJob, Session, name="Jobs", category=u"ブラウズ"))
         # av(vs.PoolModelView(
         #     models.Pool, Session, name="Pools", category="Admin"))
         # av(vs.ConfigurationView(
@@ -97,7 +97,7 @@ def create_app(config=None):
         #                   name='Github', url='https://github.com/airbnb/airflow'))
 
         av(vs.DagRunModelView(
-            models.DagRun, Session, name="DAG Runs", category="Browse"))
+            models.DagRun, Session, name="DAG Runs", category=u"ブラウズ"))
         av(vs.DagModelView(models.DagModel, Session, name=None))
         # Hack to not add this view to the menu
         admin._menu = admin._menu[:-1]
