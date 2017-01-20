@@ -96,8 +96,8 @@ def create_app(config=None):
 #     base.MenuLink(category='Docs',
 #                   name='Github', url='https://github.com/airbnb/airflow'))
 
-    av(vs.DagRunModelView(
-        models.DagRun, Session, name="DAG Runs", category=u"ブラウズ"))
+    # av(vs.DagRunModelView(
+    #     models.DagRun, Session, name="DAG Runs", category=u"ブラウズ"))
     av(vs.DagModelView(models.DagModel, Session, name=None))
     # Hack to not add this view to the menu
     admin._menu = admin._menu[:-1]
