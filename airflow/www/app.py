@@ -39,7 +39,7 @@ def create_app(config=None):
 
     csrf.init_app(app)
 
-    #app.config = config
+    # app.config = config
     airflow.load_login()
     airflow.login.login_manager.init_app(app)
 
@@ -69,15 +69,15 @@ def create_app(config=None):
         # av(vs.KnowEventView(
         #     models.KnownEvent,
         #     Session, name="Known Events", category="Data Profiling"))
-        av(vs.SlaMissModelView(
-            models.SlaMiss,
-            Session, name="SLA Misses", category="Browse"))
-        av(vs.TaskInstanceModelView(models.TaskInstance,
-                                    Session, name="Task Instances", category="Browse"))
+        # av(vs.SlaMissModelView(
+        #     models.SlaMiss,
+        #     Session, name="SLA Misses", category="Browse"))
+        # av(vs.TaskInstanceModelView(models.TaskInstance,
+        # Session, name = "Task Instances", category = "Browse"))
         av(vs.LogModelView(
             models.Log, Session, name="Logs", category="Browse"))
-        av(vs.JobModelView(
-            jobs.BaseJob, Session, name="Jobs", category="Browse"))
+        # av(vs.JobModelView(
+        #     jobs.BaseJob, Session, name="Jobs", category="Browse"))
         # av(vs.PoolModelView(
         #     models.Pool, Session, name="Pools", category="Admin"))
         # av(vs.ConfigurationView(
