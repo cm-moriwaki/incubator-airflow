@@ -672,43 +672,21 @@ class Airflow(BaseView):
     def dag_edit(self):
         dag_id = request.args.get('dag_id')
         dag = dagbag.get_dag(dag_id)
-        title = u'タスク編集'
-        # for test @@@@
+        title = u'タスク詳細'
 
-        class Hoge():
-            pass
-        target_tables = []
-        target_tables.append(Hoge())
-        target_tables[-1].csa_job_name = u'ジョブA'
-        target_tables[-1].csa_is_master = True
-        target_tables[-1].csa_schema_name = u'test'
-        target_tables[-1].csa_table_name = u'users'
-        target_tables[-1].csa_s3_key_prefix = u'users/'
-        target_tables[-1].csa_s3_sort_keys = None
-        target_tables[-1].csa_s3_dist_style = None
-        target_tables.append(Hoge())
-        target_tables[-1].csa_job_name = u'ジョブA'
-        target_tables[-1].csa_is_master = False
-        target_tables[-1].csa_schema_name = u'test2'
-        target_tables[-1].csa_table_name = u'users2'
-        target_tables[-1].csa_s3_key_prefix = u'users2/'
-        target_tables[-1].csa_s3_sort_keys = '1,2,3'
-        target_tables[-1].csa_s3_dist_style = u'even'
-        target_tables.append(Hoge())
-        target_tables[-1].csa_job_name = u'ジョブB'
-        target_tables[-1].csa_is_master = True
-        target_tables[-1].csa_schema_name = u'public'
-        target_tables[-1].csa_table_name = u'aaaaa'
-        target_tables[-1].csa_s3_key_prefix = u'abbbdd/'
-        target_tables[-1].csa_s3_sort_keys = '1'
-        target_tables[-1].csa_s3_dist_style = u'1'
+        CsaModel = models.CsaTableModel
+        session = settings.Session()
+        target_tables = [r for r in session.query(
+            CsaModel).filter(CsaModel.dag_id == dag_id).order_by(
+                CsaModel.order)]
+        session.close()
 
         dag.csa_target_tables = target_tables
         # for test end
         return self.render(
             'airflow/dag_edit.html',
             title=title,
-            dag=dag,)
+            dag=dag)
 
     @expose('/dag_details')
     @login_required
@@ -1612,6 +1590,57 @@ class Airflow(BaseView):
         dagbag.get_dag(dag_id)
         return "OK"
 
+    @expose('/remove_dag')
+    @login_required
+    @wwwutils.action_logging
+    def remove_dag(self):
+        dag_id = request.args.get('dag_id')
+        dagbag.remove_csa_dag(dag_id)
+        flash(u"タスク [{}] を削除しました。".format(dag_id))
+        return redirect('/')
+
+    @expose('/add_dag', methods=['POST'])
+    @login_required
+    @wwwutils.action_logging
+    def add_dag(self):
+        dag_id = request.form.get('dag_id')
+        schedule_interval_raw = request.form.get('schedule_interval')
+        schedule_interval = models.DAG.schedule_interval_dec(schedule_interval_raw)
+        dagbag.add_csa_dag(dag_id, schedule_interval)
+        dagbag.collect_dags(only_if_updated=False)
+
+        flash(u"タスク [{}] を追加しました。\n設定を更新してください。".format(dag_id))
+        return redirect(url_for('airflow.dag_edit', dag_id=dag_id))
+
+    @expose('/update_dag', methods=['POST'])
+    @login_required
+    @wwwutils.action_logging
+    def update_dag(self):
+        dag_id = request.form.get('dag_id')
+        schedule_interval_raw = request.form.get('schedule_interval')
+        schedule_interval = models.DAG.schedule_interval_dec(schedule_interval_raw)
+        base_dag_id = request.form.get('base_dag_id')
+
+        # for dag
+        dagbag.remove_csa_dag(base_dag_id)
+        dagbag.add_csa_dag(dag_id, schedule_interval)
+        dagbag.collect_dags(only_if_updated=False)
+
+        # for csa table
+        CsaModel = models.CsaTableModel
+        session = settings.Session()
+        session.query(CsaModel).filter(CsaModel.dag_id == dag_id).delete()
+
+        info_json = request.form.get('tables')
+        info_raw = json.loads(info_json)
+        new_info = [CsaModel(dag_id, order=i, **e) for (i, e) in enumerate(info_raw)]
+        session.add_all(new_info)
+        session.commit()
+        session.close()
+
+        flash(u"タスク [{}] を更新しました。".format(dag_id))
+        return redirect(url_for('airflow.dag_edit', dag_id=dag_id))
+
     @expose('/refresh')
     @login_required
     @wwwutils.action_logging
@@ -1637,7 +1666,7 @@ class Airflow(BaseView):
     @wwwutils.action_logging
     def refresh_all(self):
         dagbag.collect_dags(only_if_updated=False)
-        flash("All DAGs are now up to date")
+        flash(u"全てのタスクが更新されました。")
         return redirect('/')
 
     @expose('/gantt')

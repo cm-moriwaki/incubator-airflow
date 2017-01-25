@@ -12,23 +12,24 @@
 
 {% block body %}
 {{ super() }}
-<h2>パラメータ</h2>
-<table class="table table-striped table-bordered">
-    <tr>
-        <th>タスク名</td>
-        <td><a href="#" class="editable_input" data-type="text" data-placement="right">{{ dag.dag_id }}</a></td>
-    </tr>
-    <tr>
-        <th>スケジュール</td>
-        <td><a href="#" class="editable_input" data-type="text" data-placement="right">{{ dag.schedule_interval_pp }}</a></td>
-    </tr>
-</table >
-<br>
-<h2>対象テーブル</h2>
-<table class="table table-striped table-bordered">
+<form method="POST" action="{{ get_url("airflow.update_dag")}}" role="form" enctype="multipart/form-data" class="form-horizontal">
+    <div class="form-group">
+        <label class="col-md-2 control-label">タスク名</label>
+        <div class="col-md-3">
+            <input class="form-control" name="dag_id" type="text" value="{{ dag.dag_id }}">
+        </div>
+    </div>
+    <div class="form-group">
+        <label class="col-md-2 control-label">スケジュール</label>
+        <div class="col-md-2">
+            <input class="form-control" name="schedule_interval" type="text" value="{{ dag.schedule_interval_pp }}">
+        </div>
+    </div>
+    <hr>
+<div class="form-group">
+<table class="table table-striped table-bordered" id='table_info_raw'>
     <thead>
         <tr>
-            <th>ジョブ名</th>
             <th>テーブル種別</th>
             <th>スキーマ名</th>
             <th>テーブル名</th>
@@ -39,29 +40,54 @@
         </tr>
     </thead>
     <tbody>
+    {% if dag.csa_target_tables %}
     {% for target in dag.csa_target_tables %}
     <tr>
-        <td><a href="#" class="editable_input" data-type="text" data-placement="right">{{ target.csa_job_name }}</a></td>
-        <td><a href="#" class="editable_is_master" data-type="select" data-placement="right">{%- if target.csa_is_master %}全件{%- else %}差分{%- endif %}</a></td>
-        <td><a href="#" class="editable_input" data-type="text" data-placement="right">{{ target.csa_schema_name }}</a></td>
-        <td><a href="#" class="editable_input" data-type="text" data-placement="right">{{ target.csa_table_name }}</a></td>
-        <td><a href="#" class="editable_input" data-type="text" data-placement="right">{%- if target.csa_s3_key_prefix %}{{ target.csa_s3_key_prefix }}{%- else %}{%- endif %}</a></td>
-        <td><a href="#" class="editable_input" data-type="text" data-placement="right">{%- if target.csa_s3_sort_keys %}{{ target.csa_s3_sort_keys }}{%- else %}{%- endif %}</a></td>
-        <td><a href="#" class="editable_input" data-type="text" data-placement="right">{%- if target.csa_s3_dist_style %}{{ target.csa_s3_dist_style }}{%- else %}{%- endif %}</a></td>
+        <td><a href="#" title="is_master" class="editable_is_master" data-type="select" data-placement="right">{%- if target.is_master %}全件{%- else %}差分{%- endif %}</a></td>
+        <td><a href="#" title="schema_name" class="editable_input" data-type="text" data-placement="right">{{ target.schema_name }}</a></td>
+        <td><a href="#" title="table_name" class="editable_input" data-type="text" data-placement="right">{{ target.table_name }}</a></td>
+        <td><a href="#" title="s3_key_prefix" class="editable_input" data-type="text" data-placement="right">{{ target.s3_key_prefix if target.s3_key_prefix else "" }}</a></td>
+        <td><a href="#" title="sort_keys" class="editable_input" data-type="text" data-placement="right">{{ target.sort_keys if target.sort_keys else "" }}</a></td>
+        <td><a href="#" title="dist_style" class="editable_input" data-type="text" data-placement="right">{{ target.dist_style if target.dist_style else "" }}</a></td>
         <td><nobr>
-            <button class="btn btn-default btn-sm move down" type="submit"><span class="glyphicon glyphicon-chevron-down" aria-hidden="true"></span></button>
-            <button class="btn btn-default btn-sm move up" type="submit"><span class="glyphicon glyphicon-chevron-up" aria-hidden="true"></span></button>
-            <button class="btn btn-default btn-sm add" type="submit"><span class="glyphicon glyphicon-plus" aria-hidden="true"></span></button>
-            <button class="btn btn-default btn-sm delete" type="submit"><span class="glyphicon glyphicon-trash" aria-hidden="true"></span></button>
+            <a href="#" class="btn btn-default btn-sm move down" role="button"><span class="glyphicon glyphicon-chevron-down" aria-hidden="true"></span></a>
+            <a href="#" class="btn btn-default btn-sm move up" role="button"><span class="glyphicon glyphicon-chevron-up" aria-hidden="true"></span></a>
+            <a href="#" class="btn btn-default btn-sm add" role="button"><span class="glyphicon glyphicon-plus" aria-hidden="true"></span></a>
+            <a href="#" class="btn btn-default btn-sm delete" role="button"><span class="glyphicon glyphicon-trash" aria-hidden="true"></span></a>
         </nobr></td>
     </tr>
     {% endfor %}
+    {% else %}
+    <tr>
+        <td><a href="#" title="is_master" class="editable_is_master" data-type="select" data-placement="right">全件</a></td>
+        <td><a href="#" title="schema_name" class="editable_input" data-type="text" data-placement="right">public</a></td>
+        <td><a href="#" title="table_name" class="editable_input" data-type="text" data-placement="right">table_a</a></td>
+        <td><a href="#" title="s3_key_prefix" class="editable_input" data-type="text" data-placement="right">prefix_xxx</a></td>
+        <td><a href="#" title="sort_keys" class="editable_input" data-type="text" data-placement="right"></a></td>
+        <td><a href="#" title="dist_style" class="editable_input" data-type="text" data-placement="right"></a></td>
+        <td><nobr>
+            <a href="#" class="btn btn-default btn-sm move down" role="button"><span class="glyphicon glyphicon-chevron-down" aria-hidden="true"></span></a>
+            <a href="#" class="btn btn-default btn-sm move up" role="button"><span class="glyphicon glyphicon-chevron-up" aria-hidden="true"></span></a>
+            <a href="#" class="btn btn-default btn-sm add" role="button"><span class="glyphicon glyphicon-plus" aria-hidden="true"></span></a>
+            <a href="#" class="btn btn-default btn-sm delete" role="button"><span class="glyphicon glyphicon-trash" aria-hidden="true"></span></a>
+        </nobr></td>
+    </tr>
+    {% endif %}
     </tbody>
 </table>
-<div class="form-group">
-    <button class="btn btn-primary" type="submit">セーブ</button>
-    <button class="btn btn-danger" type="submit">キャンセル</button>
 </div>
+<hr>
+<div class="form-group">
+    <button type="submit" class="btn btn-primary" role=button id="submit_dag_info">セーブ</button>
+    <a href="{{ url_for("airflow.dag_edit", dag_id=dag.dag_id) }}" class="btn btn-default" role=button>キャンセル</a>
+    <a href="{{ url_for("airflow.remove_dag", dag_id=dag.dag_id) }}" class="btn btn-danger" role=button>タスクの削除</a>
+    {% if csrf_token %}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="tables" value="" id="table_info"/>
+    <input type="hidden" name="base_dag_id" value="{{ dag.dag_id }}"/>
+    {% endif %}
+</div>
+</form>
 {% endblock %}
 
 {% block tail %}
@@ -89,6 +115,15 @@
              var row = $(this).closest('tr');
              var clone = row.clone();
              row.after(clone)
+             $('.editable_input').editable({
+                 emptytext: 'None'
+             });
+             $('.editable_is_master').editable({
+                 source : [
+                     {value: '1', text: '全件'},
+                     {value: '0', text: '差分'}
+                 ]
+             });
          });
 
          $('table').on('click','.move',function(){
@@ -98,6 +133,28 @@
              }else{
                  row.next().after(row);
              }
+         });
+
+         $('#submit_dag_info').on('click', function(){
+             var info = $('#table_info_raw tbody tr').map(function() {
+                 var e = {};
+                 $(this).children('td').each(function() {
+                     var a = $(this).find('a:first');
+                     if (a.attr('title') != null) {
+                         var val = a.text();
+                         if (val == 'None') {
+                             val = ''
+                         }
+                         if (a.hasClass('editable_is_master')) {
+                             val = val == '全件'
+                         }
+                         e[a.attr('title')] = val;
+                     }
+                 });
+                 return e;
+             }).get();
+             var j = JSON.stringify(info);
+             $("#table_info").val(j);
          });
      });
     </script>

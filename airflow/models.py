@@ -75,8 +75,17 @@ SQL_ALCHEMY_CONN = configuration.get('core', 'SQL_ALCHEMY_CONN')
 TIMEZONE = pytz.timezone(configuration.get('core', 'TIMEZONE'))
 DAGS_FOLDER = os.path.expanduser(configuration.get('core', 'DAGS_FOLDER'))
 XCOM_RETURN_KEY = 'return_value'
+CSA_HOME = configuration.get('core', 'CSA_HOME')
+DDDs = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 Stats = settings.Stats
+
+CSA_SCHEMA_LEN = 20
+CSA_TABLE_LEN = 60
+CSA_S3_OBJECT_KEY_LEN = 170
+CSA_SORTKEY_LEN = 30
+CSA_DISTSTYLE_LEN = 30
+
 
 ENCRYPTION_ON = False
 try:
@@ -369,6 +378,7 @@ class DagBag(LoggingMixin):
             subdag.is_subdag = True
             self.bag_dag(subdag, parent_dag=dag, root_dag=root_dag)
         self.logger.debug('Loaded DAG {dag}'.format(**locals()))
+        print('Loaded DAG {dag}'.format(**locals()))
 
     def collect_dags(
             self,
@@ -434,6 +444,47 @@ class DagBag(LoggingMixin):
         session.commit()
         session.close()
         return dag_ids
+
+    def remove_csa_dag(self, dag_id):
+        session = settings.Session()
+        session.query(DagModel).filter(DagModel.dag_id == dag_id).delete()
+        session.commit()
+        session.close()
+
+        dag_file_path = os.path.join(self.dag_folder, '{}.py'.format(dag_id))
+        os.remove(dag_file_path)
+
+    def add_csa_dag(self, dag_id, schedule_interval='@once'):
+        dag_template = u"""'''# {{ dag_id }}
+'''
+import pytz
+from airflow import DAG
+from airflow import configuration
+from airflow.operators import BashOperator
+from datetime import datetime, timedelta, time
+
+timezone = pytz.timezone(configuration.get('core', 'TIMEZONE'))
+
+start = datetime.combine(datetime.today() - timedelta(1), time(tzinfo=timezone))
+default_args = {
+    'owner': 'airflow',
+    'start_date': start,
+}
+
+dag = DAG('{{ dag_id }}', default_args=default_args, schedule_interval='{{ schedule_interval }}')
+command = '''cd %s
+digdag run --rerun csa-{{ dag_id }}.dig
+'''
+
+t1 = BashOperator(
+    task_id='run',
+    bash_command=command,
+    dag=dag,
+)
+""" % CSA_HOME
+        with open(os.path.join(self.dag_folder, '{}.py'.format(dag_id)), 'wb') as dag_file:
+            dag_file.write(jinja2.Environment().from_string(dag_template).render(
+                dag_id=dag_id, schedule_interval=schedule_interval))
 
 
 class User(Base):
@@ -2298,6 +2349,8 @@ class DagModel(Base):
     is_subdag = Column(Boolean, default=False)
     # Whether that DAG was seen on the last DagBag load
     is_active = Column(Boolean, default=False)
+    # Whether the DAG is a deleted from ui
+    is_deleted = Column(Boolean, default=False)
     # Last time the scheduler started
     last_scheduler_run = Column(DateTime(True))
     # Last time this DAG was pickled
@@ -2558,7 +2611,78 @@ class DAG(LoggingMixin):
 
     @property
     def schedule_interval_pp(self):
-        return self.schedule_interval
+        schedule = self.schedule_interval
+        minute, hour, day, month, ddd = schedule.split(' ')
+        if '/' in minute:
+            # minute_interval
+            return minute.split('/')[-1]
+        if ddd != '*':
+            # weekly
+            ddd, hour, minute = [int(u) for u in (ddd, hour, minute)]
+            return "{0},{1:02d}:{2:02d}:00".format(DDDs[ddd], hour, minute)
+        if day != '*':
+            # monthly
+            day, hour, minute = [int(u) for u in (day, hour, minute)]
+            return "{0:02d},{1:02d}:{2:02d}:00".format(day, hour, minute)
+        if hour != '*':
+            # daily
+            hour, minute = [int(u) for u in (hour, minute)]
+            return "{0:02d}:{1:02d}:00".format(hour, minute)
+        # hourly
+        return "{0:02d}:00".format(int(minute))
+
+    @property
+    def schedule_interval_unit(self):
+        schedule = self.schedule_interval_pp
+        if ',' in schedule:
+            # weekly or monthly
+            ddd = schedule.split(',')[0]
+            if ddd in DDDs:
+                return u'週次'
+            else:
+                return u'月次'
+        else:
+            # daily or hourly or minutes_interval
+            if ':' in schedule:
+                # daily or hourly
+                if schedule.count(':') == 1:
+                    return u'毎時'
+                elif schedule.count(':') == 2:
+                    return u'日次'
+            else:
+                # minutes_interval
+                return u'x分おき'
+
+    @classmethod
+    def schedule_interval_dec(cls, pp_interval):
+        schedule = pp_interval.replace(' ', '')
+        if ',' in schedule:
+            # weekly or monthly
+            ddd = schedule.split(',')[0]
+            h, m, s = [int(u) for u in schedule.split(',')[-1].split(':')]
+            if ddd in DDDs:
+                # weekly
+                ddd_number = DDDs.index(ddd)
+                return '{} {} * * {}'.format(m, h, ddd_number)
+            else:
+                # monthly
+                return '{} {} {} * *'.format(m, h, int(ddd))
+        else:
+            # daily or hourly or minutes_interval
+            if ':' in schedule:
+                units = [int(u) for u in schedule.split(':')]
+                # daily or hourly
+                if schedule.count(':') == 1:
+                    # hourly
+                    return '{} * * * *'.format(units[0])
+                elif schedule.count(':') == 2:
+                    # daily
+                    return '{} {} * * *'.format(units[1], units[0])
+            else:
+                # minutes_interval
+                return '*/{} * * * *'.format(schedule)
+
+        raise Exception('%s は不正なscheduleです' % schedule)
 
     @property
     @provide_session
@@ -3413,3 +3537,30 @@ class ImportError(Base):
     timestamp = Column(DateTime(True))
     filename = Column(String(1024))
     stacktrace = Column(Text)
+
+
+class CsaTableModel(Base):
+
+    __tablename__ = "csa_target"
+
+    dag_id = Column(String(ID_LEN), primary_key=True)
+    schema_name = Column(String(CSA_SCHEMA_LEN), primary_key=True)
+    table_name = Column(String(CSA_TABLE_LEN), primary_key=True)
+    order = Column(Integer, primary_key=True)
+    s3_key_prefix = Column(String(CSA_S3_OBJECT_KEY_LEN))
+    is_master = Column(Boolean, default=False)
+    sort_keys = Column(String(CSA_SORTKEY_LEN))
+    dist_style = Column(String(CSA_DISTSTYLE_LEN))
+
+    def __repr__(self):
+        return "<CSA_INFO: {self.dag_id}, {self.schema_name}, {self.table_name}>".format(self=self)
+
+    def __init__(self, dag_id, schema_name, table_name, order, s3_key_prefix, is_master, sort_keys, dist_style):
+        self.dag_id = dag_id
+        self.schema_name = schema_name
+        self.table_name = table_name
+        self.order = order
+        self.s3_key_prefix = s3_key_prefix
+        self.is_master = is_master
+        self.sort_keys = sort_keys
+        self.dist_style = dist_style

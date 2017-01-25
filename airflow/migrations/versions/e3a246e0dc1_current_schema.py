@@ -24,6 +24,12 @@ from airflow import settings, configuration
 
 TIMEZONE = pytz.timezone(configuration.get('core', 'TIMEZONE'))
 
+CSA_SCHEMA_LEN = 20
+CSA_TABLE_LEN = 60
+CSA_S3_OBJECT_KEY_LEN = 170
+CSA_SORTKEY_LEN = 30
+CSA_DISTSTYLE_LEN = 30
+
 
 def upgrade():
     inspector = Inspector.from_engine(settings.engine)
@@ -49,6 +55,7 @@ def upgrade():
             sa.Column('is_paused', sa.Boolean(), nullable=True),
             sa.Column('is_subdag', sa.Boolean(), nullable=True),
             sa.Column('is_active', sa.Boolean(), nullable=True),
+            sa.Column('is_deleted', sa.Boolean(), nullable=True),
             sa.Column('last_scheduler_run', sa.DateTime(True), nullable=True),
             sa.Column('last_pickled', sa.DateTime(True), nullable=True),
             sa.Column('last_expired', sa.DateTime(True), nullable=True),
@@ -244,6 +251,19 @@ def upgrade():
             sa.Column('task_id', sa.String(length=250), nullable=False),
             sa.Column('dag_id', sa.String(length=250), nullable=False),
             sa.PrimaryKeyConstraint('id')
+        )
+    if 'csa_target' not in tables:
+        op.create_table(
+            'csa_target',
+            sa.Column('dag_id', sa.String(length=259), nullable=False),
+            sa.Column('schema_name', sa.String(length=20), nullable=False),
+            sa.Column('table_name', sa.String(length=60), nullable=False),
+            sa.Column('order', sa.Integer(), nullable=False),
+            sa.Column('is_master', sa.Boolean(), nullable=False),
+            sa.Column('s3_key_prefix', sa.String(length=170), nullable=False),
+            sa.Column('sort_keys', sa.String(length=30), nullable=True),
+            sa.Column('dist_style', sa.String(length=30), nullable=True),
+            sa.PrimaryKeyConstraint('dag_id', 'schema_name', 'table_name', 'order')
         )
 
 
