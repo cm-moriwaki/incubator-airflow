@@ -52,6 +52,8 @@ from wtforms import (
 from pygments import highlight, lexers
 from pygments.formatters import HtmlFormatter
 
+import math
+
 import airflow
 from airflow import configuration as conf
 from airflow import models
@@ -141,14 +143,14 @@ def state_f(v, c, m, p):
 
 def duration_f(v, c, m, p):
     if m.end_date and m.duration:
-        return timedelta(seconds=m.duration)
+        return timedelta(seconds=math.floor(m.duration))
 
 
 def datetime_f(v, c, m, p):
     attr = getattr(m, p)
-    dttm = attr.isoformat() if attr else ''
-    if datetime.now(TIMEZONE).isoformat()[:4] == dttm[:4]:
-        dttm = dttm[5:]
+    dttm = attr.strftime('%Y-%m-%d %H:%M:%S%Z') if attr else ''
+    # if datetime.now(TIMEZONE).isoformat()[:4] == dttm[:4]:
+    #     dttm = dttm[5:]
     return Markup("<nobr>{}</nobr>".format(dttm))
 
 
@@ -2187,11 +2189,15 @@ class LogModelView(ModelViewOnly):
 
 
 class TaskInstanceModelView(ModelViewOnly):
-    verbose_name_plural = "task instances"
-    verbose_name = "task instance"
+    # verbose_name_plural = "task instances"
+    # verbose_name = "task instance"
+    verbose_name_plural = u"実行履歴"
+    verbose_name = u"実行履歴"
+    # column_filters = (
+    #     'state', 'dag_id', 'task_id', 'execution_date', 'hostname',
+    #     'queue', 'pool', 'operator', 'start_date', 'end_date')
     column_filters = (
-        'state', 'dag_id', 'task_id', 'execution_date', 'hostname',
-        'queue', 'pool', 'operator', 'start_date', 'end_date')
+        'state', 'dag_id', 'start_date', 'end_date')
     named_filter_urls = True
     column_formatters = dict(
         log=log_link, task_id=task_instance_link,
@@ -2211,11 +2217,22 @@ class TaskInstanceModelView(ModelViewOnly):
             ('failed', 'failed'),
         ],
     }
+    # column_list = (
+    #     'state', 'dag_id', 'task_id', 'execution_date', 'operator',
+    #     'start_date', 'end_date', 'duration', 'job_id', 'hostname',
+    #     'unixname', 'priority_weight', 'queue', 'queued_dttm', 'try_number',
+    #     'pool', 'log')
     column_list = (
-        'state', 'dag_id', 'task_id', 'execution_date', 'operator',
-        'start_date', 'end_date', 'duration', 'job_id', 'hostname',
-        'unixname', 'priority_weight', 'queue', 'queued_dttm', 'try_number',
-        'pool', 'log')
+        'state', 'dag_id', 'start_date', 'end_date', 'duration', 'try_number', 'log')
+    column_labels = dict(
+        state=u'ステータス',
+        dag_id=u'タスク名',
+        start_date=u'開始時刻',
+        end_date=u'終了時刻',
+        duration=u'実行時間',
+        try_number=u'トライ回数',
+        log=u'ログ',
+    )
     can_delete = True
     page_size = 500
 

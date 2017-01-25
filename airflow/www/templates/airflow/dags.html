@@ -68,25 +68,28 @@
                 </td>
                 <td class="text-center" style="width:160px;"><nobr>
                 {% if dag %}
-    <a href="{{ url_for("airflow.dag_edit", dag_id=dag.dag_id) }}" title="Dag Edit View">
+    <a href="{{ url_for("airflow.dag_edit", dag_id=dag.dag_id) }}" title="詳細">
         <span class="glyphicon glyphicon-list" aria-hidden="true"></span>
     </a>
-    <a href="{{ url_for("airflow.tree", dag_id=dag.dag_id, num_runs=25) }}" title="Tree View">
+    <a href="{{ url_for("airflow.tree", dag_id=dag.dag_id, num_runs=25) }}" title="ツリー">
         <span class="glyphicon glyphicon-tree-deciduous" aria-hidden="true"></span>
     </a>
-    <a href="{{ url_for("airflow.graph", dag_id=dag.dag_id) }}" title="Graph View">
+    <a href="{{ url_for("airflow.graph", dag_id=dag.dag_id) }}" title="グラフ">
         <span class="glyphicon glyphicon-certificate" aria-hidden="true"></span>
       </a>
-    <a href="{{ url_for("airflow.duration", dag_id=dag.dag_id) }}" title="Tasks Duration">
+    <a href="{{ url_for("airflow.duration", dag_id=dag.dag_id) }}" title="実行時間">
         <span class="glyphicon glyphicon-stats" aria-hidden="true"></span>
     </a>
-      <a href="{{ url_for("airflow.landing_times", dag_id=dag.dag_id) }}" title="Landing Times">
+      <a href="{{ url_for("airflow.landing_times", dag_id=dag.dag_id) }}" title="ランディングタイム">
         <span class="glyphicon glyphicon-plane" aria-hidden="true"></span>
       </a>
-      <a href="{{ url_for("airflow.gantt", dag_id=dag.dag_id) }}" title="Gantt View">
+      <a href="{{ url_for("airflow.gantt", dag_id=dag.dag_id) }}" title="ガントチャート">
         <span class="glyphicon glyphicon-align-left" aria-hidden="true"></span>
         <i class="icon-align-left"></i>
       </a>
+      <!-- <a href="#" data-toggle="modal" onClick="showRemoveDagModal('{{ dag.dag_id }}')" title="タスクの削除">
+           <span class="glyphicon glyphicon-trash" aria-hidden="true"></span>
+           </a> -->
       <!-- <a href="{{ url_for("airflow.code", dag_id=dag.dag_id) }}" title="Code View"> -->
       <!--   <span class="glyphicon glyphicon-flash" aria-hidden="true"></span> -->
       <!-- </a> -->
@@ -139,6 +142,22 @@
                             <!-- </div> -->
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="removeDagModal" tabindex="-1" role="dialog" aria-labelledby="addDagModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="myModalLabel">タスクの削除</h4>
+                </div>
+                <div class="modal-body">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">キャンセル</button>
+                    <button type="submit" id="removeDagSubmit" class="btn btn-primary">削除</button>
+                </div>
             </div>
         </div>
     </div>
@@ -265,6 +284,9 @@
           html: true,
           container: "body",
         });
-    });
+      });
+   function showRemoveDagModal(dag_id){
+       $("#removeDagModal .modal-body").html(dag_id + " を削除します。")
+   }
   </script>
 {% endblock %}

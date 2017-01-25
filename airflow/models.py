@@ -76,6 +76,8 @@ TIMEZONE = pytz.timezone(configuration.get('core', 'TIMEZONE'))
 DAGS_FOLDER = os.path.expanduser(configuration.get('core', 'DAGS_FOLDER'))
 XCOM_RETURN_KEY = 'return_value'
 CSA_HOME = configuration.get('core', 'CSA_HOME')
+CSA_DAG_TEMPLATE_PATH = configuration.get('core', 'CSA_DAG_TEMPLATE')
+
 DDDs = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 Stats = settings.Stats
@@ -455,36 +457,12 @@ class DagBag(LoggingMixin):
         os.remove(dag_file_path)
 
     def add_csa_dag(self, dag_id, schedule_interval='@once'):
-        dag_template = u"""'''# {{ dag_id }}
-'''
-import pytz
-from airflow import DAG
-from airflow import configuration
-from airflow.operators import BashOperator
-from datetime import datetime, timedelta, time
-
-timezone = pytz.timezone(configuration.get('core', 'TIMEZONE'))
-
-start = datetime.combine(datetime.today() - timedelta(1), time(tzinfo=timezone))
-default_args = {
-    'owner': 'airflow',
-    'start_date': start,
-}
-
-dag = DAG('{{ dag_id }}', default_args=default_args, schedule_interval='{{ schedule_interval }}')
-command = '''cd %s
-digdag run --rerun csa-{{ dag_id }}.dig
-'''
-
-t1 = BashOperator(
-    task_id='run',
-    bash_command=command,
-    dag=dag,
-)
-""" % CSA_HOME
-        with open(os.path.join(self.dag_folder, '{}.py'.format(dag_id)), 'wb') as dag_file:
-            dag_file.write(jinja2.Environment().from_string(dag_template).render(
-                dag_id=dag_id, schedule_interval=schedule_interval))
+        with open(os.path.join(self.dag_folder, '{}.py'.format(dag_id)), 'wb') as dag_file, open(CSA_DAG_TEMPLATE_PATH) as template_file:
+            dag_file.write(jinja2.Environment().from_string(template_file.read()).render(
+                dag_id=dag_id,
+                schedule_interval=schedule_interval,
+                d=datetime.now(TIMEZONE),
+            ))
 
 
 class User(Base):
