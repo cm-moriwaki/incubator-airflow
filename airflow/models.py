@@ -21,6 +21,7 @@ from future.standard_library import install_aliases
 install_aliases()
 from builtins import str
 from builtins import object, bytes
+import codecs
 import copy
 from datetime import datetime, timedelta
 import dill
@@ -77,6 +78,10 @@ DAGS_FOLDER = os.path.expanduser(configuration.get('core', 'DAGS_FOLDER'))
 XCOM_RETURN_KEY = 'return_value'
 CSA_HOME = configuration.get('core', 'CSA_HOME')
 CSA_DAG_TEMPLATE_PATH = configuration.get('core', 'CSA_DAG_TEMPLATE')
+CSA_DAG_TEMPLATE = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(os.path.dirname(
+        CSA_DAG_TEMPLATE_PATH))).get_template(os.path.basename(CSA_DAG_TEMPLATE_PATH))
+
 
 DDDs = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -457,12 +462,13 @@ class DagBag(LoggingMixin):
         os.remove(dag_file_path)
 
     def add_csa_dag(self, dag_id, schedule_interval='@once'):
-        with open(os.path.join(self.dag_folder, '{}.py'.format(dag_id)), 'wb') as dag_file, open(CSA_DAG_TEMPLATE_PATH) as template_file:
-            dag_file.write(jinja2.Environment().from_string(template_file.read()).render(
+        with codecs.open(os.path.join(self.dag_folder, '{}.py'.format(dag_id)), 'w', 'utf-8') as dag_file:
+            s = CSA_DAG_TEMPLATE.render(
                 dag_id=dag_id,
                 schedule_interval=schedule_interval,
-                d=datetime.now(TIMEZONE),
-            ))
+                d=datetime.now(TIMEZONE)
+            )
+            dag_file.write(s)
 
 
 class User(Base):
