@@ -610,12 +610,12 @@ class Airflow(BaseView):
             session.query(TI.dag_id, TI.state, sqla.func.count(TI.task_id))
             .outerjoin(RunningDagRun, and_(
                 RunningDagRun.c.dag_id == TI.dag_id,
-                RunningDagRun.c.execution_date == TI.execution_date)
-            )
+                # RunningDagRun.c.execution_date == TI.execution_date
+            ))
             .outerjoin(LastDagRun, and_(
                 LastDagRun.c.dag_id == TI.dag_id,
-                LastDagRun.c.execution_date == TI.execution_date)
-            )
+                # LastDagRun.c.execution_date == TI.execution_date
+            ))
             .filter(TI.task_id.in_(task_ids))
             .filter(TI.dag_id.in_(dag_ids))
             .filter(or_(
@@ -995,6 +995,7 @@ class Airflow(BaseView):
 
         execution_date = request.args.get('execution_date')
         execution_date = dateutil.parser.parse(execution_date)
+        execution_date = datetime.now(TIMEZONE)
         force = request.args.get('force') == "true"
         deps = request.args.get('deps') == "true"
 
