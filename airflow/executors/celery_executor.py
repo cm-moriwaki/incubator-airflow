@@ -2,6 +2,7 @@ from builtins import object
 import logging
 import subprocess
 import time
+import ast
 
 from celery import Celery
 from celery import states as celery_states
@@ -29,6 +30,8 @@ class CeleryConfig(object):
     CELERYD_CONCURRENCY = configuration.getint('celery', 'CELERYD_CONCURRENCY')
     CELERY_DEFAULT_QUEUE = DEFAULT_QUEUE
     CELERY_DEFAULT_EXCHANGE = DEFAULT_QUEUE
+    BROKER_TRANSPORT_OPTIONS = ast.literal_eval(
+        str(configuration.get('celery', 'BROKER_TRANSPORT_OPTIONS')))
 
 app = Celery(
     configuration.get('celery', 'CELERY_APP_NAME'),
@@ -60,8 +63,8 @@ class CeleryExecutor(BaseExecutor):
         self.last_state = {}
 
     def execute_async(self, key, command, queue=DEFAULT_QUEUE):
-        self.logger.info( "[celery] queuing {key} through celery, "
-                       "queue={queue}".format(**locals()))
+        self.logger.info("[celery] queuing {key} through celery, "
+                         "queue={queue}".format(**locals()))
         self.tasks[key] = execute_command.apply_async(
             args=[command], queue=queue)
         self.last_state[key] = celery_states.PENDING

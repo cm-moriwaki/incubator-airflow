@@ -1636,6 +1636,7 @@ class Airflow(BaseView):
 
         info_json = request.form.get('tables')
         info_raw = json.loads(info_json)
+        print("@@@", info_raw)
         new_info = [CsaModel(dag_id, order=i, **e) for (i, e) in enumerate(info_raw)]
         session.add_all(new_info)
         session.commit()
