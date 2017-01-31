@@ -168,7 +168,7 @@
 <div class="form-group">
     <button type="submit" class="btn btn-primary validate" role=button id="submit_dag_info">更新</button>
     <a href="{{ url_for("airflow.dag_edit", dag_id=dag.dag_id) }}" class="btn btn-default" role=button>元に戻す</a>
-    <a href="{{ url_for("airflow.remove_dag", dag_id=dag.dag_id) }}" class="btn btn-danger" role=button>タスクの削除</a>
+    <a href="{{ url_for("airflow.trash", dag_id=dag.dag_id) }}" class="btn btn-danger" role=button>タスクの削除</a>
     {% if csrf_token %}
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <input type="hidden" name="tables" value="" id="table_info"/>

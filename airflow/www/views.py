@@ -1593,27 +1593,29 @@ class Airflow(BaseView):
         dagbag.get_dag(dag_id)
         return "OK"
 
-    @expose('/remove_dag')
+    @expose('/trash', methods=['POST', 'GET'])
     @login_required
     @wwwutils.action_logging
-    def remove_dag(self):
-        dag_id = request.args.get('dag_id')
-        dagbag.remove_csa_dag(dag_id)
-        flash(u"タスク [{}] を削除しました。".format(dag_id))
-        return redirect('/')
+    def trash(self):
+        if request.method == 'GET':
+            dag_id = request.args.get('dag_id')
+            dagbag.remove_csa_dag(dag_id)
+            flash(u"タスク [{}] を削除しました。".format(dag_id))
+            return redirect('/')
 
-    @expose('/add_dag', methods=['POST'])
+    @expose('/dagbag', methods=['POST', 'GET'])
     @login_required
     @wwwutils.action_logging
-    def add_dag(self):
-        dag_id = request.form.get('dag_id')
-        schedule_interval_raw = request.form.get('schedule_interval')
-        schedule_interval = models.DAG.schedule_interval_dec(schedule_interval_raw)
-        dagbag.add_csa_dag(dag_id, schedule_interval)
-        dagbag.collect_dags(only_if_updated=False)
+    def dagbag(self):
+        if request.method == 'POST':
+            dag_id = request.form.get('dag_id')
+            schedule_interval_raw = request.form.get('schedule_interval')
+            schedule_interval = models.DAG.schedule_interval_dec(schedule_interval_raw)
+            dagbag.add_csa_dag(dag_id, schedule_interval)
+            dagbag.collect_dags(only_if_updated=False)
 
-        flash(u"タスク [{}] を追加しました。\n設定を更新してください。".format(dag_id))
-        return redirect(url_for('airflow.dag_edit', dag_id=dag_id))
+            flash(u"タスク [{}] を追加しました。\n設定を更新してください。".format(dag_id))
+            return redirect(url_for('airflow.dag_edit', dag_id=dag_id))
 
     @expose('/update_dag', methods=['POST'])
     @login_required
@@ -1636,7 +1638,6 @@ class Airflow(BaseView):
 
         info_json = request.form.get('tables')
         info_raw = json.loads(info_json)
-        print("@@@", info_raw)
         new_info = [CsaModel(dag_id, order=i, **e) for (i, e) in enumerate(info_raw)]
         session.add_all(new_info)
         session.commit()
