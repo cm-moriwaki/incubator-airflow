@@ -461,12 +461,13 @@ class DagBag(LoggingMixin):
         dag_file_path = os.path.join(self.dag_folder, '{}.py'.format(dag_id))
         os.remove(dag_file_path)
 
-    def add_csa_dag(self, dag_id, schedule_interval='@once'):
+    def add_csa_dag(self, dag_id, schedule_interval):
         with codecs.open(os.path.join(self.dag_folder, '{}.py'.format(dag_id)), 'w', 'utf-8') as dag_file:
             s = CSA_DAG_TEMPLATE.render(
                 dag_id=dag_id,
                 schedule_interval=schedule_interval,
-                d=datetime.now(TIMEZONE)
+                d=datetime.now(TIMEZONE),
+                csa_home=CSA_HOME,
             )
             dag_file.write(s)
 
