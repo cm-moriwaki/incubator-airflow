@@ -74,6 +74,7 @@ QUERY_LIMIT = 100000
 CHART_LIMIT = 200000
 
 dagbag = models.DagBag(os.path.expanduser(conf.get('core', 'DAGS_FOLDER')))
+csa = models.CsaConnector(dagbag)
 TIMEZONE = pytz.timezone(conf.get('core', 'TIMEZONE'))
 
 
@@ -1599,7 +1600,7 @@ class Airflow(BaseView):
     def trash(self):
         if request.method == 'GET':
             dag_id = request.args.get('dag_id')
-            dagbag.remove_csa_dag(dag_id)
+            csa.remove_task(dag_id)
             flash(u"タスク [{}] を削除しました。".format(dag_id))
             return redirect('/')
 
@@ -1611,10 +1612,10 @@ class Airflow(BaseView):
             dag_id = request.form.get('dag_id')
             schedule_interval_raw = request.form.get('schedule_interval')
             schedule_interval = models.DAG.schedule_interval_dec(schedule_interval_raw)
-            dagbag.add_csa_dag(dag_id, schedule_interval)
+            csa.add_task(dag_id, schedule_interval)
             dagbag.collect_dags(only_if_updated=False)
 
-            flash(u"タスク [{}] を追加しました。\n設定を更新してください。".format(dag_id))
+            flash(u"タスク [{}] を追加しました。\nテーブル情報を入力してください。".format(dag_id))
             return redirect(url_for('airflow.dag_edit', dag_id=dag_id))
 
     @expose('/update_dag', methods=['POST'])
@@ -1625,10 +1626,11 @@ class Airflow(BaseView):
         schedule_interval_raw = request.form.get('schedule_interval')
         schedule_interval = models.DAG.schedule_interval_dec(schedule_interval_raw)
         base_dag_id = request.form.get('base_dag_id')
+        no_sync = request.form.get('no_sync')
 
         # for dag
-        dagbag.remove_csa_dag(base_dag_id)
-        dagbag.add_csa_dag(dag_id, schedule_interval)
+        csa.remove_task(base_dag_id)
+        csa.add_task(dag_id, schedule_interval)
         dagbag.collect_dags(only_if_updated=False)
 
         # for csa table
@@ -1643,6 +1645,8 @@ class Airflow(BaseView):
         session.commit()
         session.close()
 
+        if not no_sync:
+            csa.sync()
         flash(u"タスク [{}] を更新しました。".format(dag_id))
         return redirect(url_for('airflow.dag_edit', dag_id=dag_id))
 
@@ -1672,6 +1676,14 @@ class Airflow(BaseView):
     def refresh_all(self):
         dagbag.collect_dags(only_if_updated=False)
         flash(u"全てのタスクが更新されました。")
+        return redirect('/')
+
+    @expose('/sync_csa')
+    @login_required
+    @wwwutils.action_logging
+    def sync_csa(self):
+        csa.sync()
+        flash(u"全てのタスクを同期しました。")
         return redirect('/')
 
     @expose('/gantt')

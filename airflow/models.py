@@ -39,6 +39,7 @@ import pytz
 import re
 import signal
 import socket
+import subprocess as sp
 import sys
 import traceback
 import warnings
@@ -55,6 +56,7 @@ from sqlalchemy.orm import relationship, synonym
 
 from croniter import croniter
 import six
+import pandas as pd
 
 from airflow import settings, utils
 from airflow.executors import DEFAULT_EXECUTOR, LocalExecutor
@@ -76,11 +78,14 @@ SQL_ALCHEMY_CONN = configuration.get('core', 'SQL_ALCHEMY_CONN')
 TIMEZONE = pytz.timezone(configuration.get('core', 'TIMEZONE'))
 DAGS_FOLDER = os.path.expanduser(configuration.get('core', 'DAGS_FOLDER'))
 XCOM_RETURN_KEY = 'return_value'
-CSA_HOME = configuration.get('core', 'CSA_HOME')
-CSA_DAG_TEMPLATE_PATH = configuration.get('core', 'CSA_DAG_TEMPLATE')
+CSA_HOME = configuration.get('csa', 'CSA_HOME')
+CSA_DAG_TEMPLATE_PATH = configuration.get('csa', 'DAG_TEMPLATE')
 CSA_DAG_TEMPLATE = jinja2.Environment(
     loader=jinja2.FileSystemLoader(os.path.dirname(
         CSA_DAG_TEMPLATE_PATH))).get_template(os.path.basename(CSA_DAG_TEMPLATE_PATH))
+CSA_TABLES_FILE_NAME = configuration.get('csa', 'TABLES')
+CSA_SCHEDULE_FILE_NAME = configuration.get('csa', 'SCHEDULE')
+CSA_SYNC_COMMAND = configuration.get('csa', 'SYNC_COMMAND')
 
 
 DDDs = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -451,25 +456,6 @@ class DagBag(LoggingMixin):
         session.commit()
         session.close()
         return dag_ids
-
-    def remove_csa_dag(self, dag_id):
-        session = settings.Session()
-        session.query(DagModel).filter(DagModel.dag_id == dag_id).delete()
-        session.commit()
-        session.close()
-
-        dag_file_path = os.path.join(self.dag_folder, '{}.py'.format(dag_id))
-        os.remove(dag_file_path)
-
-    def add_csa_dag(self, dag_id, schedule_interval):
-        with codecs.open(os.path.join(self.dag_folder, '{}.py'.format(dag_id)), 'w', 'utf-8') as dag_file:
-            s = CSA_DAG_TEMPLATE.render(
-                dag_id=dag_id,
-                schedule_interval=schedule_interval,
-                d=datetime.now(TIMEZONE),
-                csa_home=CSA_HOME,
-            )
-            dag_file.write(s)
 
 
 class User(Base):
@@ -3549,3 +3535,50 @@ class CsaTableModel(Base):
         self.is_master = is_master
         self.sort_keys = sort_keys
         self.dist_style = dist_style
+
+
+class CsaConnector(LoggingMixin):
+
+    def __init__(self, dagbag):
+        self._dagbag = dagbag
+
+    def remove_task(self, dag_id):
+        session = settings.Session()
+        session.query(DagModel).filter(DagModel.dag_id == dag_id).delete()
+        session.commit()
+        session.close()
+
+        dag_file_path = os.path.join(self._dagbag.dag_folder, '{}.py'.format(dag_id))
+        os.remove(dag_file_path)
+
+    def add_task(self, dag_id, schedule_interval):
+        with codecs.open(os.path.join(self._dagbag.dag_folder, '{}.py'.format(dag_id)), 'w', 'utf-8') as dag_file:
+            s = CSA_DAG_TEMPLATE.render(
+                dag_id=dag_id,
+                schedule_interval=schedule_interval,
+                d=datetime.now(TIMEZONE),
+                csa_home=CSA_HOME,
+            )
+            dag_file.write(s)
+
+    def sync(self):
+        session = settings.Session()
+        dags = self._dagbag.dags
+        schedule_raw = pd.DataFrame([[k, v.schedule_interval_pp] for k, v in dags.items()],
+                                    columns=['task_name', 'schedule'])
+        # schedule
+        with open(os.path.join(CSA_HOME, CSA_SCHEDULE_FILE_NAME), 'w') as f:
+            f.write(schedule_raw.sort(['task_name']).to_csv(index=False))
+
+        query = session.query(CsaTableModel).order_by(
+            CsaTableModel.dag_id, CsaTableModel.order)
+        tables_raw = pd.read_sql(query.statement, query.session.bind)
+        tables_raw['is_master'] = tables_raw['is_master'].map(lambda x: 'm' if x else 't')
+
+        # tables
+        with open(os.path.join(CSA_HOME, CSA_TABLES_FILE_NAME), 'w') as f:
+            f.write(tables_raw[['dag_id', 'is_master', 'schema_name', 'table_name',
+                                's3_key_prefix', 'sort_keys', 'dist_style']].to_csv(index=False))
+        session.close()
+
+        sp.check_call(CSA_SYNC_COMMAND, shell=True)
