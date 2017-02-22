@@ -5790,6 +5790,7 @@ button.close {
   text-decoration: none;
   background-color: #000000;
   border-radius: 4px;
+  white-space:pre-wrap;
 }
 .tooltip-arrow {
   position: absolute;
