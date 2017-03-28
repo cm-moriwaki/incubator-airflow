@@ -57,7 +57,7 @@
         <td class="row col-md-1">
             <div class="col-md-12">
                 <div class="form-group">
-                    <input class="form-control" name="schema_name" type="text" value="{{ target.schema_name }}" placeholder="xxx"></input>
+                    <input class="form-control" name="schema_name" type="text" value="{{ target.schema_name }}"></input>
                     <div class="help-block with-errors"></div>
                 </div>
             </div>
@@ -65,7 +65,7 @@
         <td class="row col-md-2">
             <div class="col-md-12">
                 <div class="form-group">
-                    <input class="form-control" name="table_name" type="text" value="{{ target.table_name }}" placeholder="xxx_yyy" maxlength="30" required></input>
+                    <input class="form-control" name="table_name" type="text" value="{{ target.table_name }}" maxlength="30" required></input>
                     <div class="help-block with-errors"></div>
                 </div>
             </div>
@@ -73,7 +73,7 @@
         <td class="row col-md-2">
             <div class="col-md-12">
                 <div class="form-group">
-                    <input class="form-control" name="s3_key_prefix" type="text" value="{{ target.s3_key_prefix }}" maxlength="180" required placeholder="zzz"></input>
+                    <input class="form-control" name="s3_key_prefix" type="text" value="{{ target.s3_key_prefix }}" maxlength="180" required></input>
                     <div class="help-block with-errors"></div>
                 </div>
             </div>
@@ -81,7 +81,7 @@
         <td class="row col-md-2">
             <div class="col-md-12">
                 <div class="form-group">
-                    <input class="form-control" name="sort_keys" type="text" value="{{ target.sort_keys }}" pattern="^[,0-9]{1,}$" placeholder="1,2"></input>
+                    <input class="form-control" name="sort_keys" type="text" value="{{ target.sort_keys }}" pattern="^[,0-9]{1,}$"></input>
                     <div class="help-block with-errors"></div>
                 </div>
             </div>
@@ -89,7 +89,7 @@
         <td class="row col-md-2">
             <div class="col-md-12">
                 <div class="form-group">
-                    <input class="form-control" name="dist_style" type="text" value="{{ target.dist_style }}" pattern="^(even|all|[0-9]{1,})$" placeholder="even"></input>
+                    <input class="form-control" name="dist_style" type="text" value="{{ target.dist_style }}" pattern="^(even|all|[0-9]{1,})$"></input>
                     <div class="help-block with-errors"></div>
                 </div>
             </div>
