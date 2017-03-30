@@ -28,73 +28,46 @@
         <div class="help-block with-errors"></div>
     </div>
     <hr>
-<table class="table table-striped table-bordered condensed" id='table_info_raw'>
+<table class="table table-striped table-bordered condensed" id='target_info_raw'>
     <thead>
         <tr>
             <th>種別</span></th>
-            <th>スキーマ <span class="glyphicon glyphicon-info-sign" title="省略時、publicスキーマ"></span></th>
-            <th>テーブル(必須)</th>
-            <th>ファイルprefix(必須)</th>
-            <th>ソートキー <span class="glyphicon glyphicon-info-sign" title="行番号をカンマ区切りで入力。省略時、1列目をソートキー"></span></th>
-            <th>分散スタイル <span class="glyphicon glyphicon-info-sign" title="all, even, または行番号を入力。省略時、最適なスタイルを自動付与"></span></th>
+            <th>ターゲット</th>
             <th></th>
         </tr>
     </thead>
     <tbody>
-    {% if dag.csa_target_tables %}
-    {% for target in dag.csa_target_tables %}
+    {% if csa_targets %}
+    {% for target in csa_targets %}
     <tr>
-        <td class="row col-md-1">
+        <td class="row col-md-2">
             <div class="col-md-12">
                 <div class="form-group">
-                    <select class="form-control select_is_master" name="is_master" require>
-                        <option {{ "selected" if target.is_master}}>全件</option>
-                        <option {{ "selected" if not target.is_master}}>差分</option>
+                    <select class="form-control target_type" name="type" require>
+                        <option value="src" {{ 'selected' if target.type=='src' }}>ファイル連携</option>
+                        <option value="sql" {{ 'selected' if target.type=='sql' }}>SQL</option>
                     </select>
                 </div>
             </div>
         </td>
-        <td class="row col-md-1">
+        <td class="row col-md-8">
             <div class="col-md-12">
                 <div class="form-group">
-                    <input class="form-control" name="schema_name" type="text" value="{{ target.schema_name }}"></input>
-                    <div class="help-block with-errors"></div>
+                    <select class="form-control targets" name="target">
+                        {% if target.type=='src' %}
+                        {% for file_to_table in file_to_tables -%}
+                        <option values="{{ file_to_table.schema_name }}.{{ file_to_table.table_name }}" {{ 'selected' if target.target==file_to_table.schema_name+'.'+file_to_table.table_name }}>{{ file_to_table.schema_name }}.{{ file_to_table.table_name }}</option>
+                        {% endfor -%}
+                        {% else %}
+                        {% for sql in sqls -%}
+                        <option values="{{ sql.sql_name }}" {{ 'selected' if target.target==sql.sql_name}}>{{ sql.sql_name }}</option>
+                        {% endfor -%}
+                        {% endif %}
+                    </select>
                 </div>
             </div>
         </td>
-        <td class="row col-md-2">
-            <div class="col-md-12">
-                <div class="form-group">
-                    <input class="form-control" name="table_name" type="text" value="{{ target.table_name }}" maxlength="30" required></input>
-                    <div class="help-block with-errors"></div>
-                </div>
-            </div>
-        </td>
-        <td class="row col-md-2">
-            <div class="col-md-12">
-                <div class="form-group">
-                    <input class="form-control" name="s3_key_prefix" type="text" value="{{ target.s3_key_prefix }}" maxlength="180" required></input>
-                    <div class="help-block with-errors"></div>
-                </div>
-            </div>
-        </td>
-        <td class="row col-md-2">
-            <div class="col-md-12">
-                <div class="form-group">
-                    <input class="form-control" name="sort_keys" type="text" value="{{ target.sort_keys }}" pattern="^[,0-9]{1,}$"></input>
-                    <div class="help-block with-errors"></div>
-                </div>
-            </div>
-        </td>
-        <td class="row col-md-2">
-            <div class="col-md-12">
-                <div class="form-group">
-                    <input class="form-control" name="dist_style" type="text" value="{{ target.dist_style }}" pattern="^(even|all|[0-9]{1,})$"></input>
-                    <div class="help-block with-errors"></div>
-                </div>
-            </div>
-        </td>
-        <td class="row text-center col-md-2"><nobr>
+        <td class="row text-center col-md-1"><nobr>
             <a href="#" class="btn btn-default btn-sm move down" role="button"><span class="glyphicon glyphicon-chevron-down" aria-hidden="true"></span></a>
             <a href="#" class="btn btn-default btn-sm move up" role="button"><span class="glyphicon glyphicon-chevron-up" aria-hidden="true"></span></a>
             <a href="#" class="btn btn-default btn-sm add" role="button"><span class="glyphicon glyphicon-plus" aria-hidden="true"></span></a>
@@ -104,57 +77,28 @@
     {% endfor %}
     {% else %}
     <tr>
-        <td class="row col-md-1">
+        <td class="row col-md-2">
             <div class="col-md-12">
                 <div class="form-group">
-                    <select class="form-control select_is_master" name="is_master" require>
-                        <option selected>全件</option>
-                        <option>差分</option>
+                    <select class="form-control target_type" name="type" require>
+                        <option value="src" selected>ファイル連携</option>
+                        <option value="sql">SQL</option>
                     </select>
                 </div>
             </div>
         </td>
-        <td class="row col-md-1">
+        <td class="row col-md-8">
             <div class="col-md-12">
                 <div class="form-group">
-                    <input class="form-control" name="schema_name" type="text" value="" placeholder="xxx"></input>
-                    <div class="help-block with-errors"></div>
+                  <select class="form-control targets" name="target">
+                        {% for file_to_table in file_to_tables -%}
+                        <option values="{{ file_to_table.schema_name }}.{{ file_to_table.table_name }}">{{ file_to_table.schema_name }}.{{ file_to_table.table_name }}</option>
+                        {% endfor -%}
+                  </select>
                 </div>
             </div>
         </td>
-        <td class="row col-md-2">
-            <div class="col-md-12">
-                <div class="form-group">
-                    <input class="form-control" name="table_name" type="text" value="" placeholder="xxx_yyy" maxlength="30" required></input>
-                    <div class="help-block with-errors"></div>
-                </div>
-            </div>
-        </td>
-        <td class="row col-md-2">
-            <div class="col-md-12">
-                <div class="form-group">
-                    <input class="form-control" name="s3_key_prefix" type="text" value="" maxlength="180" required placeholder="zzz"></input>
-                    <div class="help-block with-errors"></div>
-                </div>
-            </div>
-        </td>
-        <td class="row col-md-2">
-            <div class="col-md-12">
-                <div class="form-group">
-                    <input class="form-control" name="sort_keys" type="text" value="" pattern="^[,0-9]{1,}$" placeholder="1,2"></input>
-                    <div class="help-block with-errors"></div>
-                </div>
-            </div>
-        </td>
-        <td class="row col-md-2">
-            <div class="col-md-12">
-                <div class="form-group">
-                    <input class="form-control" name="dist_style" type="text" value="" pattern="^(even|all|[0-9]{1,})$" placeholder="even"></input>
-                    <div class="help-block with-errors"></div>
-                </div>
-            </div>
-        </td>
-        <td class="row text-center col-md-2"><nobr>
+        <td class="row text-center col-md-1"><nobr>
             <a href="#" class="btn btn-default btn-sm move down" role="button"><span class="glyphicon glyphicon-chevron-down" aria-hidden="true"></span></a>
             <a href="#" class="btn btn-default btn-sm move up" role="button"><span class="glyphicon glyphicon-chevron-up" aria-hidden="true"></span></a>
             <a href="#" class="btn btn-default btn-sm add" role="button"><span class="glyphicon glyphicon-plus" aria-hidden="true"></span></a>
@@ -171,7 +115,7 @@
     <a href="{{ url_for("airflow.trash", dag_id=dag.dag_id) }}" class="btn btn-danger" role=button>タスクの削除</a>
     {% if csrf_token %}
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <input type="hidden" name="tables" value="" id="table_info"/>
+    <input type="hidden" name="new_targets" value="" id="target_info"/>
     <input type="hidden" name="base_dag_id" value="{{ dag.dag_id }}"/>
     {% endif %}
 </div>
@@ -184,6 +128,7 @@
     <script>
      $(document).ready(function() {
          $("#editDagForm").validator();
+         $(".multiple-select").select2();
 
          $('table').on('click','.delete',function(){
              $(this).parents('tr').remove();
@@ -191,12 +136,21 @@
          });
 
          $('table').on('click','.add',function(){
+             $(".multiple-select").select2("destroy");
              var row = $(this).closest('tr');
              var clone = row.clone();
              clone.find(':text').val('');
              clone.find('ul').remove();
-             row.after(clone)
+             clone.find('.target_type').change(function() {
+                 var target_type = $(this).val();
+                 var $s = $(this).closest('tr').find(".targets");
+                 setTargets($s, target_type);
+             });
+             clone.find('.target_type').prop('selectedIndex', 0);
+             setTargets(clone.find('.targets'), clone.find('.target_type').val());
+             row.after(clone);
              $("#editDagForm").validator('update');
+             $(".multiple-select").select2();
          });
 
          $('table').on('click','.move',function(){
@@ -209,23 +163,47 @@
          });
 
          $('#submit_dag_info').on('click', function(){
-             var info = $('#table_info_raw tbody tr').map(function() {
+             var info = $('#target_info_raw tbody tr').map(function() {
                  var elems = {};
                  $(this).children('td').each(function() {
                      var e = $(this).find('input:first,select:first');
                      if (e.attr('name') != null) {
                          var val = e.val();
-                         if (e.hasClass('select_is_master')) {
-                             val = val == '全件';
-                         }
                          elems[e.attr('name')] = val;
                      }
                  });
                  return elems;
              }).get();
              var j = JSON.stringify(info);
-             $("#table_info").val(j);
+             $("#target_info").val(j);
          });
+
+         var all_targets = [
+             {% for sql in sqls -%}
+             { type: 'sql', target: '{{ sql.sql_name}}'},
+             {% endfor -%}
+             {% for file_to_table in file_to_tables -%}
+             { type: 'src', target: '{{ file_to_table.schema_name}}.{{ file_to_table.table_name }}'},
+             {% endfor -%}
+             { type: 'terminate', target: ''}
+         ]
+         $('.target_type').change(function() {
+             var target_type = $(this).val();
+             var $s = $(this).closest('tr').find(".targets");
+             setTargets($s, target_type);
+         });
+         function setTargets(type_select, target_type) {
+             var $s = type_select;
+             $s.find('option').remove();
+             $(all_targets).each(function(i, val) {
+                 if (val.type == target_type){
+                     $s.append($('<option>')
+                                          .attr('type', val.type)
+                                          .val(val.target)
+                                          .text(val.target));
+                 }
+             });
+         };
      });
     </script>
 {% endblock %}

@@ -256,14 +256,31 @@ def upgrade():
         op.create_table(
             'csa_target',
             sa.Column('dag_id', sa.String(length=259), nullable=False),
+            sa.Column('order', sa.Integer(), nullable=False),
+            sa.Column('type', sa.String(length=10), nullable=False),
+            sa.Column('target', sa.String(length=256), nullable=False),
+            sa.PrimaryKeyConstraint('dag_id', 'order')
+        )
+    if 'file_to_table' not in tables:
+        op.create_table(
+            'file_to_table',
+            sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('schema_name', sa.String(length=20), nullable=False),
             sa.Column('table_name', sa.String(length=60), nullable=False),
-            sa.Column('order', sa.Integer(), nullable=False),
             sa.Column('is_master', sa.Boolean(), nullable=False),
             sa.Column('s3_key_prefix', sa.String(length=170), nullable=False),
             sa.Column('sort_keys', sa.String(length=30), nullable=True),
             sa.Column('dist_style', sa.String(length=30), nullable=True),
-            sa.PrimaryKeyConstraint('dag_id', 'schema_name', 'table_name', 'order')
+            sa.PrimaryKeyConstraint('id')
+        )
+    if 'custom_sql' not in tables:
+        op.create_table(
+            'custom_sql',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('sql_name', sa.String(length=256), nullable=False),
+            sa.Column('code', sa.Text(), nullable=False),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('sql_name')
         )
 
 

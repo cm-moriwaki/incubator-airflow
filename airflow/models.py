@@ -1392,6 +1392,18 @@ class TaskInstance(Base):
         if task.params:
             params.update(task.params)
 
+        class VariableAccessor:
+
+            def __init__(self):
+                self.var = None
+
+            def __getattr__(self, item):
+                self.var = Variable.get(item)
+                return self.var
+
+            def __repr__(self):
+                return str(self.var)
+
         return {
             'dag': task.dag,
             'ds': ds,
@@ -1417,6 +1429,8 @@ class TaskInstance(Base):
             'task_instance_key_str': ti_key_str,
             'conf': configuration,
             'test_mode': self.test_mode,
+            'var': VariableAccessor(),
+            'vars': Variable.items()
         }
 
     def render_templates(self):
@@ -3257,6 +3271,12 @@ class Variable(Base):
         session.add(Variable(key=key, val=stored_value))
         session.flush()
 
+    @classmethod
+    @provide_session
+    def items(cls, session=None):
+        objs = session.query(cls)
+        return {o.key: o.val for o in objs}
+
 
 class XCom(Base):
     """
@@ -3510,31 +3530,51 @@ class ImportError(Base):
     stacktrace = Column(Text)
 
 
-class CsaTableModel(Base):
+class FileToTable(Base):
 
-    __tablename__ = "csa_target"
+    __tablename__ = "file_to_table"
 
-    dag_id = Column(String(ID_LEN), primary_key=True)
-    schema_name = Column(String(CSA_SCHEMA_LEN), primary_key=True)
-    table_name = Column(String(CSA_TABLE_LEN), primary_key=True)
-    order = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True)
+    schema_name = Column(String(CSA_SCHEMA_LEN))
+    table_name = Column(String(CSA_TABLE_LEN))
     s3_key_prefix = Column(String(CSA_S3_OBJECT_KEY_LEN))
     is_master = Column(Boolean, default=False)
     sort_keys = Column(String(CSA_SORTKEY_LEN))
     dist_style = Column(String(CSA_DISTSTYLE_LEN))
 
     def __repr__(self):
-        return "<CSA_INFO: {self.dag_id}, {self.schema_name}, {self.table_name}>".format(self=self)
+        return "<CSA_INFO: {self.schema_name}, {self.table_name}>".format(self=self)
 
-    def __init__(self, dag_id, schema_name, table_name, order, s3_key_prefix, is_master, sort_keys, dist_style):
+
+class CustomSql(Base):
+
+    __tablename__ = "custom_sql"
+
+    id = Column(Integer, primary_key=True)
+    sql_name = Column(String(256), unique=True)
+    code = Column(Text)
+
+    def __repr__(self):
+        return "<CSA_INFO: {self.code}>".format(self=self)
+
+
+class CsaTargetModel(Base):
+
+    __tablename__ = "csa_target"
+
+    dag_id = Column(String(ID_LEN), primary_key=True)
+    order = Column(Integer, primary_key=True)
+    type = Column(String(10))
+    target = Column(String(256))
+
+    def __repr__(self):
+        return "<CSA_INFO: {self.dag_id}, {self.order}, {self.type}, {self.target}>".format(self=self)
+
+    def __init__(self, dag_id, order, type, target):
         self.dag_id = dag_id
-        self.schema_name = schema_name
-        self.table_name = table_name
         self.order = order
-        self.s3_key_prefix = s3_key_prefix
-        self.is_master = is_master
-        self.sort_keys = sort_keys
-        self.dist_style = dist_style
+        self.type = type
+        self.target = target
 
 
 class CsaConnector(LoggingMixin):
@@ -3562,6 +3602,7 @@ class CsaConnector(LoggingMixin):
             dag_file.write(s)
 
     def sync(self):
+        return
         session = settings.Session()
         dags = self._dagbag.dags
         schedule_raw = pd.DataFrame([[k, v.schedule_interval_pp] for k, v in dags.items()],
@@ -3570,10 +3611,9 @@ class CsaConnector(LoggingMixin):
         with open(os.path.join(CSA_HOME, CSA_SCHEDULE_FILE_NAME), 'w') as f:
             f.write(schedule_raw.sort(['task_name']).to_csv(index=False))
 
-        query = session.query(CsaTableModel).order_by(
-            CsaTableModel.dag_id, CsaTableModel.order)
+        query = session.query(CsaTargetModel).order_by(
+            CsaTargetModel.dag_id, CsaTargetModel.order)
         tables_raw = pd.read_sql(query.statement, query.session.bind)
-        tables_raw['is_master'] = tables_raw['is_master'].map(lambda x: 'm' if x else 't')
 
         # tables
         with open(os.path.join(CSA_HOME, CSA_TABLES_FILE_NAME), 'w') as f:

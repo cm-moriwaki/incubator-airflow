@@ -70,6 +70,8 @@ from airflow.utils import logging as log_utils
 from airflow.www import utils as wwwutils
 from airflow.www.forms import DateTimeForm, DateTimeWithNumRunsForm
 
+from wtforms.validators import ValidationError
+
 QUERY_LIMIT = 100000
 CHART_LIMIT = 200000
 
@@ -677,19 +679,25 @@ class Airflow(BaseView):
         dag = dagbag.get_dag(dag_id)
         title = u'タスク詳細'
 
-        CsaModel = models.CsaTableModel
+        CsaModel = models.CsaTargetModel
         session = settings.Session()
-        target_tables = [r for r in session.query(
+        targets = [r for r in session.query(
             CsaModel).filter(CsaModel.dag_id == dag_id).order_by(
                 CsaModel.order)]
+        sqls = [r for r in session.query(
+            models.CustomSql).order_by(models.CustomSql.sql_name)]
+        file_to_tables = [r for r in session.query(
+            models.FileToTable).order_by(models.FileToTable.schema_name, models.FileToTable.table_name)]
         session.close()
 
-        dag.csa_target_tables = target_tables
-        # for test end
         return self.render(
             'airflow/dag_edit.html',
             title=title,
-            dag=dag)
+            dag=dag,
+            csa_targets=targets,
+            sqls=sqls,
+            file_to_tables=file_to_tables,
+        )
 
     @expose('/dag_details')
     @login_required
@@ -851,8 +859,7 @@ class Airflow(BaseView):
                 except:
                     log = "*** Local log file not found.\n".format(loc)
             else:
-                WORKER_LOG_SERVER_PORT = \
-                    conf.get('celery', 'WORKER_LOG_SERVER_PORT')
+                WORKER_LOG_SERVER_PORT = conf.get('celery', 'WORKER_LOG_SERVER_PORT')
                 url = os.path.join(
                     "http://{host}:{WORKER_LOG_SERVER_PORT}/log", log_relative
                 ).format(**locals())
@@ -1634,11 +1641,12 @@ class Airflow(BaseView):
         dagbag.collect_dags(only_if_updated=False)
 
         # for csa table
-        CsaModel = models.CsaTableModel
+        CsaModel = models.CsaTargetModel
         session = settings.Session()
         session.query(CsaModel).filter(CsaModel.dag_id == dag_id).delete()
 
-        info_json = request.form.get('tables')
+        info_json = request.form.get('new_targets')
+
         info_raw = json.loads(info_json)
         new_info = [CsaModel(dag_id, order=i, **e) for (i, e) in enumerate(info_raw)]
         session.add_all(new_info)
@@ -2104,19 +2112,53 @@ admin.add_view(mv)
 
 
 class VariableView(wwwutils.LoginMixin, AirflowModelView):
-    verbose_name = "Variable"
-    verbose_name_plural = "Variables"
+    verbose_name = u"環境変数"
+    verbose_name_plural = u"環境変数"
     form_columns = (
         'key',
         'val',
     )
-    column_list = ('key', 'is_encrypted',)
-    column_filters = ('key', 'val')
+    column_list = ('key', 'val', 'is_encrypted',)
+    column_filters = ('key', 'val', 'is_encrypted',)
     column_searchable_list = ('key', 'val')
     form_widget_args = {
         'is_encrypted': {'disabled': True},
         'val': {
             'rows': 20,
+        }
+    }
+    column_labels = dict(
+        key=u'キー',
+        val=u'値',
+        is_encrypted=u'暗号化',
+    )
+
+
+class FileToTableView(wwwutils.LoginMixin, AirflowModelView):
+    verbose_name = u"ファイル連携リスト"
+    verbose_name_plural = u"ファイル連携リスト"
+
+
+class CustomSqlView(wwwutils.LoginMixin, AirflowModelView):
+    verbose_name = u"SQL一覧"
+    verbose_name_plural = u"SQL一覧"
+    column_default_sort = ('sql_name', False)
+    column_list = ('sql_name',)
+    column_filters = ('sql_name',)
+    column_labels = dict(
+        sql_name=u'SQL名',
+    )
+    form_columns = (
+        'sql_name',
+        'code',
+    )
+    form_widget_args = {
+        'code': {
+            'rows': 20,
+            'reuired': True,
+        },
+        'sql_name': {
+            'required': True,
         }
     }
 

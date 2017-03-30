@@ -3,10 +3,21 @@
 {% block body %}
   {% if admin_view.verbose_name %}
   <h2>
-    {{ admin_view.verbose_name|title }}
-    <small>[edit]</small>
+    {{ admin_view.verbose_name }}
+    <small>[編集]</small>
   </h2>
   <hr/>
   {% endif %}
   {{ super() }}
 {% endblock %}
+
+{% block tail_js %}
+{{ super() }}
+    <script src="{{ url_for('static', filename='validator.min.js') }}"></script>
+    <script>
+     $(document).ready(function() {
+         $("form").validator();
+     });
+    </script>
+{% endblock %}
+
