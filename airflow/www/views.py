@@ -2138,6 +2138,18 @@ class FileToTableView(wwwutils.LoginMixin, AirflowModelView):
     verbose_name = u"ファイル連携リスト"
     verbose_name_plural = u"ファイル連携リスト"
 
+    @action('load_init', u"initファイルを取り込み", None)
+    def action_load_init(self, ids):
+        print("@@@@", ids)
+        self.load_init(ids)
+
+    @provide_session
+    def load_init(self, ids, session=None):
+        FtT = models.FileToTable
+        targets = session.query(FtT).filter(FtT.id.in_(ids)).all()
+        session.commit()
+        csa.load_init(targets)
+
 
 class CustomSqlView(wwwutils.LoginMixin, AirflowModelView):
     verbose_name = u"SQL一覧"

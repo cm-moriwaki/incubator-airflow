@@ -3589,7 +3589,8 @@ class CsaConnector(LoggingMixin):
         session.close()
 
         dag_file_path = os.path.join(self._dagbag.dag_folder, '{}.py'.format(dag_id))
-        os.remove(dag_file_path)
+        if os.path.isfile(dag_file_path):
+            os.remove(dag_file_path)
 
     def add_task(self, dag_id, schedule_interval):
         with codecs.open(os.path.join(self._dagbag.dag_folder, '{}.py'.format(dag_id)), 'w', 'utf-8') as dag_file:
@@ -3600,6 +3601,11 @@ class CsaConnector(LoggingMixin):
                 csa_home=CSA_HOME,
             )
             dag_file.write(s)
+
+    def load_init(self, targets):
+        for t in targets:
+            print("@@@@", t)
+            print("@@@@", t.table_name)
 
     def sync(self):
         return
