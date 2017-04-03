@@ -31,6 +31,7 @@ import inspect
 import traceback
 
 import sqlalchemy as sqla
+from sqlalchemy import distinct
 from sqlalchemy import or_, desc, and_
 
 import pytz
@@ -1040,50 +1041,37 @@ class Airflow(BaseView):
         task = dag.get_task(task_id)
 
         execution_date = request.args.get('execution_date')
-        print("@@@clear 1@@@", execution_date)
         execution_date = dateutil.parser.parse(execution_date)
-        print("@@@clear 2@@@", execution_date)
         confirmed = request.args.get('confirmed') == "true"
         upstream = request.args.get('upstream') == "true"
         downstream = request.args.get('downstream') == "true"
         future = request.args.get('future') == "true"
         past = request.args.get('past') == "true"
 
-        print("@@@clear 3@@@", execution_date)
         dag = dag.sub_dag(
             task_regex=r"^{0}$".format(task_id),
             include_downstream=downstream,
             include_upstream=upstream)
-        print("@@@clear 4@@@", execution_date)
 
         end_date = execution_date if not future else None
         start_date = execution_date if not past else None
         if confirmed:
-            print("@@@ a 1 @@@")
             count = dag.clear(
                 start_date=start_date,
                 end_date=end_date)
-            print("@@@ a 2 @@@")
 
             flash("{0} task instances have been cleared".format(count))
-            print("@@@ a 3 @@@")
             return redirect(origin)
         else:
-            print("@@@ b 1 @@@")
             tis = dag.clear(
                 start_date=start_date,
                 end_date=end_date,
                 dry_run=True)
-            print("@@@ b 2 @@@")
             if not tis:
-                print("@@@ b 3 @@@")
                 flash("No task instances to clear", 'error')
-                print("@@@ b 4 @@@")
                 response = redirect(origin)
             else:
-                print("@@@ b 5 @@@")
                 details = "\n".join([str(t) for t in tis])
-                print("@@@ b 6 @@@")
 
                 response = self.render(
                     'airflow/confirm.html',
@@ -1091,7 +1079,6 @@ class Airflow(BaseView):
                         "Here's the list of task instances you are about "
                         "to clear:"),
                     details=details,)
-                print("@@@ b 7 @@@")
 
             return response
 
@@ -1607,7 +1594,7 @@ class Airflow(BaseView):
     def trash(self):
         if request.method == 'GET':
             dag_id = request.args.get('dag_id')
-            csa.remove_task(dag_id)
+            csa.remove_dag(dag_id)
             flash(u"タスク [{}] を削除しました。".format(dag_id))
             return redirect('/')
 
@@ -1619,7 +1606,7 @@ class Airflow(BaseView):
             dag_id = request.form.get('dag_id')
             schedule_interval_raw = request.form.get('schedule_interval')
             schedule_interval = models.DAG.schedule_interval_dec(schedule_interval_raw)
-            csa.add_task(dag_id, schedule_interval)
+            csa.add_dag(dag_id, schedule_interval)
             dagbag.collect_dags(only_if_updated=False)
 
             flash(u"タスク [{}] を追加しました。\nテーブル情報を入力してください。".format(dag_id))
@@ -1636,8 +1623,8 @@ class Airflow(BaseView):
         no_sync = request.form.get('no_sync')
 
         # for dag
-        csa.remove_task(base_dag_id)
-        csa.add_task(dag_id, schedule_interval)
+        csa.remove_dag(base_dag_id)
+        csa.add_dag(dag_id, schedule_interval)
         dagbag.collect_dags(only_if_updated=False)
 
         # for csa table
@@ -1654,7 +1641,7 @@ class Airflow(BaseView):
         session.close()
 
         if not no_sync:
-            csa.sync()
+            csa.update_task(dag_id, schedule_interval_raw)
         flash(u"タスク [{}] を更新しました。".format(dag_id))
         return redirect(url_for('airflow.dag_edit', dag_id=dag_id))
 
@@ -1690,7 +1677,24 @@ class Airflow(BaseView):
     @login_required
     @wwwutils.action_logging
     def sync_csa(self):
-        csa.sync()
+        # TODO
+        # CsaModel = models.CsaTargetModel
+
+        # session = settings.Session()
+
+        # def get_targets(dag_id):
+        #     return [r for r in session.query(
+        #         CsaModel).filter(CsaModel.dag_id == dag_id).order_by(
+        #             CsaModel.order)]
+
+        # dag_ids = [t.dag_id for t in session.query(
+        #     distinct(CsaModel.dag_id)).order_by(CsaModel.dag_id)]
+        # dag_id_targets = {d: get_targets(d) for d in dag_ids}
+        # session.commit()
+        # session.close()
+
+        # for dag_id, targets in dag_id_targets.items():
+        #     csa.update_task(dag_id, schedule_interval)
         flash(u"全てのタスクを同期しました。")
         return redirect('/')
 
@@ -2112,8 +2116,8 @@ admin.add_view(mv)
 
 
 class VariableView(wwwutils.LoginMixin, AirflowModelView):
-    verbose_name = u"環境変数"
-    verbose_name_plural = u"環境変数"
+    verbose_name = u"組み込み変数一覧"
+    verbose_name_plural = u"組み込み変数一覧"
     form_columns = (
         'key',
         'val',
@@ -2135,12 +2139,11 @@ class VariableView(wwwutils.LoginMixin, AirflowModelView):
 
 
 class FileToTableView(wwwutils.LoginMixin, AirflowModelView):
-    verbose_name = u"ファイル連携リスト"
-    verbose_name_plural = u"ファイル連携リスト"
+    verbose_name = u"連携ファイル一覧"
+    verbose_name_plural = u"連携ファイル一覧"
 
     @action('load_init', u"initファイルを取り込み", None)
     def action_load_init(self, ids):
-        print("@@@@", ids)
         self.load_init(ids)
 
     @provide_session
@@ -2148,7 +2151,20 @@ class FileToTableView(wwwutils.LoginMixin, AirflowModelView):
         FtT = models.FileToTable
         targets = session.query(FtT).filter(FtT.id.in_(ids)).all()
         session.commit()
-        csa.load_init(targets)
+        try:
+            csa.load_init(targets)
+        except Exception as ex:
+            if not self.handle_view_exception(ex):
+                raise ex
+            flash(u'initロードでエラーが発生しました。メールをご確認ください', 'error')
+        else:
+            flash(u'initロードが完了しました')
+
+    def after_model_change(self, form, model, is_created):
+        csa.create_file_to_table(model)
+
+    def after_model_delete(self, model):
+        csa.delete_file_to_table(model)
 
 
 class CustomSqlView(wwwutils.LoginMixin, AirflowModelView):
@@ -2173,6 +2189,12 @@ class CustomSqlView(wwwutils.LoginMixin, AirflowModelView):
             'required': True,
         }
     }
+
+    def after_model_change(self, form, model, is_created):
+        csa.create_sql_file(model)
+
+    def after_model_delete(self, model):
+        csa.delete_sql_file(model)
 
 
 class JobModelView(ModelViewOnly):

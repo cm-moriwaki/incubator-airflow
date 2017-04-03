@@ -71,6 +71,7 @@ from airflow.utils.logging import LoggingMixin
 from airflow.utils.state import State
 from airflow.utils.timeout import timeout
 from airflow.utils.trigger_rule import TriggerRule
+import csa.connector.airflow as csa_con
 
 Base = declarative_base()
 ID_LEN = 250
@@ -78,14 +79,6 @@ SQL_ALCHEMY_CONN = configuration.get('core', 'SQL_ALCHEMY_CONN')
 TIMEZONE = pytz.timezone(configuration.get('core', 'TIMEZONE'))
 DAGS_FOLDER = os.path.expanduser(configuration.get('core', 'DAGS_FOLDER'))
 XCOM_RETURN_KEY = 'return_value'
-CSA_HOME = configuration.get('csa', 'CSA_HOME')
-CSA_DAG_TEMPLATE_PATH = configuration.get('csa', 'DAG_TEMPLATE')
-CSA_DAG_TEMPLATE = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(os.path.dirname(
-        CSA_DAG_TEMPLATE_PATH))).get_template(os.path.basename(CSA_DAG_TEMPLATE_PATH))
-CSA_TABLES_FILE_NAME = configuration.get('csa', 'TABLES')
-CSA_SCHEDULE_FILE_NAME = configuration.get('csa', 'SCHEDULE')
-CSA_SYNC_COMMAND = configuration.get('csa', 'SYNC_COMMAND')
 
 
 DDDs = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -1430,7 +1423,7 @@ class TaskInstance(Base):
             'conf': configuration,
             'test_mode': self.test_mode,
             'var': VariableAccessor(),
-            'vars': Variable.items()
+            'vars_json': Variable.items_json()
         }
 
     def render_templates(self):
@@ -3273,9 +3266,9 @@ class Variable(Base):
 
     @classmethod
     @provide_session
-    def items(cls, session=None):
+    def items_json(cls, session=None):
         objs = session.query(cls)
-        return {o.key: o.val for o in objs}
+        return json.dumps({o.key: o.val for o in objs})
 
 
 class XCom(Base):
@@ -3582,7 +3575,7 @@ class CsaConnector(LoggingMixin):
     def __init__(self, dagbag):
         self._dagbag = dagbag
 
-    def remove_task(self, dag_id):
+    def remove_dag(self, dag_id):
         session = settings.Session()
         session.query(DagModel).filter(DagModel.dag_id == dag_id).delete()
         session.commit()
@@ -3592,39 +3585,35 @@ class CsaConnector(LoggingMixin):
         if os.path.isfile(dag_file_path):
             os.remove(dag_file_path)
 
-    def add_task(self, dag_id, schedule_interval):
-        with codecs.open(os.path.join(self._dagbag.dag_folder, '{}.py'.format(dag_id)), 'w', 'utf-8') as dag_file:
-            s = CSA_DAG_TEMPLATE.render(
-                dag_id=dag_id,
-                schedule_interval=schedule_interval,
-                d=datetime.now(TIMEZONE),
-                csa_home=CSA_HOME,
-            )
-            dag_file.write(s)
+    def add_dag(self, dag_id, schedule_interval):
+        csa_con.update_dag(dag_id, schedule_interval, datetime.now(TIMEZONE))
 
     def load_init(self, targets):
-        for t in targets:
-            print("@@@@", t)
-            print("@@@@", t.table_name)
+        csa_con.load_init(*[t.table_name for t in targets])
 
-    def sync(self):
-        return
-        session = settings.Session()
-        dags = self._dagbag.dags
-        schedule_raw = pd.DataFrame([[k, v.schedule_interval_pp] for k, v in dags.items()],
-                                    columns=['task_name', 'schedule'])
-        # schedule
-        with open(os.path.join(CSA_HOME, CSA_SCHEDULE_FILE_NAME), 'w') as f:
-            f.write(schedule_raw.sort(['task_name']).to_csv(index=False))
+    def create_sql_file(self, model):
+        csa_con.add_sql(model.sql_name, model.code)
 
-        query = session.query(CsaTargetModel).order_by(
-            CsaTargetModel.dag_id, CsaTargetModel.order)
-        tables_raw = pd.read_sql(query.statement, query.session.bind)
+    def delete_sql_file(self, model):
+        csa_con.delete_sql(model.sql_name, model.code)
 
-        # tables
-        with open(os.path.join(CSA_HOME, CSA_TABLES_FILE_NAME), 'w') as f:
-            f.write(tables_raw[['dag_id', 'is_master', 'schema_name', 'table_name',
-                                's3_key_prefix', 'sort_keys', 'dist_style']].to_csv(index=False))
-        session.close()
+    def create_file_to_table(self, model):
+        csa_con.create_file_to_table(
+            model.schema_name,
+            model.table_name,
+            model.is_master,
+            model.s3_key_prefix,
+            model.dist_style,
+            model.sort_keys
+        )
 
-        sp.check_call(CSA_SYNC_COMMAND, shell=True)
+    def delete_file_to_table(self, model):
+        # TODO
+        pass
+
+    @provide_session
+    def update_task(self, dag_id, schedule, session=None):
+        targets = [{'type': r.type, 'target': r.target} for r in session.query(
+            CsaTargetModel).filter(CsaTargetModel.dag_id == dag_id).order_by(
+                CsaTargetModel.order)]
+        csa_con.update_task_file(dag_id, schedule, *targets)
