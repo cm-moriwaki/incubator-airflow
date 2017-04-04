@@ -593,39 +593,14 @@ class Airflow(BaseView):
                 dag_ids.append(dag.dag_id)
 
         TI = models.TaskInstance
-        DagRun = models.DagRun
         session = Session()
-
-        LastDagRun = (
-            session.query(DagRun.dag_id, sqla.func.max(
-                DagRun.execution_date).label('execution_date'))
-            .group_by(DagRun.dag_id)
-            .subquery('last_dag_run')
-        )
-        RunningDagRun = (
-            session.query(DagRun.dag_id, DagRun.execution_date)
-            .filter(DagRun.state == State.RUNNING)
-            .subquery('running_dag_run')
-        )
 
         # Select all task_instances from active dag_runs.
         # If no dag_run is active, return task instances from most recent dag_run.
         qry = (
             session.query(TI.dag_id, TI.state, sqla.func.count(TI.task_id))
-            .outerjoin(RunningDagRun, and_(
-                RunningDagRun.c.dag_id == TI.dag_id,
-                # RunningDagRun.c.execution_date == TI.execution_date
-            ))
-            .outerjoin(LastDagRun, and_(
-                LastDagRun.c.dag_id == TI.dag_id,
-                # LastDagRun.c.execution_date == TI.execution_date
-            ))
             .filter(TI.task_id.in_(task_ids))
             .filter(TI.dag_id.in_(dag_ids))
-            .filter(or_(
-                RunningDagRun.c.dag_id != None,
-                LastDagRun.c.dag_id != None
-            ))
             .group_by(TI.dag_id, TI.state)
         )
 
