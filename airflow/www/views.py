@@ -2091,14 +2091,14 @@ admin.add_view(mv)
 
 
 class VariableView(wwwutils.LoginMixin, AirflowModelView):
-    verbose_name = u"組み込み変数一覧"
-    verbose_name_plural = u"組み込み変数一覧"
+    verbose_name = u"変数一覧"
+    verbose_name_plural = u"変数一覧"
     form_columns = (
         'key',
         'val',
     )
-    column_list = ('key', 'val', 'is_encrypted',)
-    column_filters = ('key', 'val', 'is_encrypted',)
+    column_list = ('key', 'val')
+    column_filters = ('key', 'val')
     column_searchable_list = ('key', 'val')
     form_widget_args = {
         'is_encrypted': {'disabled': True},
@@ -2116,6 +2116,51 @@ class VariableView(wwwutils.LoginMixin, AirflowModelView):
 class FileToTableView(wwwutils.LoginMixin, AirflowModelView):
     verbose_name = u"連携ファイル一覧"
     verbose_name_plural = u"連携ファイル一覧"
+
+    column_list = (
+        'schema_name', 'table_name', 'is_master', 's3_key_prefix',)
+
+    column_labels = dict(
+        schema_name=u'スキーマ名',
+        table_name=u'テーブル名',
+        s3_key_prefix=u'ファイルprefix',
+        is_master=u'連携種別',
+        sort_keys=u'ソートキー',
+        dist_style=u'分散スタイル',
+    )
+    column_descriptions = dict(
+        schema_name=u'ファイルの取り込み先スキーマ名(省略時 public)',
+        table_name=u'ファイルの取り込み先テーブル名(必須)',
+        s3_key_prefix=u'S3の連携ファイル・プレフィックス(第一階層以降のプレフィックスを指定 必須)',
+        sort_keys=u'テーブルのソートキーをカラム番号で指定(カラム番号は1から開始。省略時 1)',
+        dist_style=u'テーブルの分散スタイルをall, even, カラム番号で指定(カラム番号は1から開始。省略時 自動設定)',
+    )
+    column_formatters = dict(
+        is_master=lambda v, c, m, p: u'全件' if m.is_master else u'差分(追記)'
+    )
+    form_widget_args = dict(
+        table_name=dict(
+            required=True,
+        ),
+        sort_keys=dict(
+            pattern=r'^[,0-9]{1,}$',
+
+        ),
+        dist_style=dict(
+            pattern=r'^(even|all|[0-9]{1,})$',
+        ),
+    )
+    form_args = dict(
+        is_master=dict(
+            choices=(
+                ('all', u'全件'),
+                ('add', u'差分(追記)'),
+            ),
+        ),
+    )
+    form_overrides = dict(
+        is_master=SelectField,
+    )
 
     @action('load_init', u"initファイルを取り込み", None)
     def action_load_init(self, ids):
@@ -2141,6 +2186,16 @@ class FileToTableView(wwwutils.LoginMixin, AirflowModelView):
     def after_model_delete(self, model):
         csa.delete_file_to_table(model)
 
+    def on_model_change(self, form, model, is_created):
+        if not form.data['schema_name']:
+            model.schema_name = u'public'
+        if not form.data['sort_keys']:
+            model.sort_keys = '1'
+        if form.data['is_master'] == u'all':
+            model.is_master = True
+        else:
+            model.is_master = False
+
 
 class CustomSqlView(wwwutils.LoginMixin, AirflowModelView):
     verbose_name = u"SQL一覧"
@@ -2158,7 +2213,7 @@ class CustomSqlView(wwwutils.LoginMixin, AirflowModelView):
     form_widget_args = {
         'code': {
             'rows': 20,
-            'reuired': True,
+            'required': True,
         },
         'sql_name': {
             'required': True,
