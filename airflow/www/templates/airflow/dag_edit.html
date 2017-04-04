@@ -14,7 +14,7 @@
     <div class="form-group">
         <label class="col-md-2 control-label">タスク名</label>
         <div class="col-md-3">
-            <input autofocus class="form-control" name="dag_id" type="text" value="{{ dag.dag_id }}" pattern="^[_A-z0-9]{1,}$" maxlength="30" required placeholder="task_xxx">
+            <input autofocus class="form-control" name="dag_id" type="text" value="{{ dag.dag_id }}" pattern="^[_A-z0-9]{1,}$" maxlength="30" required placeholder="task_xxx" {{ 'disabled' if dag.is_preset }}>
         </div>
         <span class="glyphicon glyphicon-info-sign" title="英数字，アンダースコアを30文字まで使用可能です"></span>
         <div class="help-block with-errors"></div>
@@ -112,7 +112,7 @@
 <div class="form-group">
     <button type="submit" class="btn btn-primary validate" role=button id="submit_dag_info">更新</button>
     <a href="{{ url_for("airflow.dag_edit", dag_id=dag.dag_id) }}" class="btn btn-default" role=button>元に戻す</a>
-    <a href="{{ url_for("airflow.trash", dag_id=dag.dag_id) }}" class="btn btn-danger" role=button>タスクの削除</a>
+    <a href="{{ url_for("airflow.trash", dag_id=dag.dag_id) }}" class="btn btn-danger" role=button  {{ 'disabled' if dag.is_preset }}>タスクの削除</a>
     {% if csrf_token %}
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <input type="hidden" name="new_targets" value="" id="target_info"/>

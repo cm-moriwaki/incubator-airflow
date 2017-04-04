@@ -3570,6 +3570,17 @@ class CsaTargetModel(Base):
         self.target = target
 
 
+class CsaPresetDag(Base):
+    __tablename__ = "csa_preset_dag"
+
+    dag_id = Column(String(ID_LEN), primary_key=True)
+    is_secret = Column(Boolean)
+
+    def __repr__(self):
+        return str((
+            self.dag_id, self.task_id, self.execution_date.isoformat()))
+
+
 class CsaConnector(LoggingMixin):
 
     def __init__(self, dagbag):

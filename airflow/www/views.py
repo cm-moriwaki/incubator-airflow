@@ -664,8 +664,11 @@ class Airflow(BaseView):
             models.CustomSql).order_by(models.CustomSql.sql_name)]
         file_to_tables = [r for r in session.query(
             models.FileToTable).order_by(models.FileToTable.schema_name, models.FileToTable.table_name)]
+        CPD = models.CsaPresetDag
+        preset_dag_ids = [sd.dag_id for sd in session.query(CPD).all()]
         session.close()
 
+        dag.is_preset = dag.dag_id in preset_dag_ids
         return self.render(
             'airflow/dag_edit.html',
             title=title,
@@ -1803,6 +1806,7 @@ class HomeView(AdminIndexView):
     def index(self):
         session = Session()
         DM = models.DagModel
+        CPD = models.CsaPresetDag
         qry = None
         # filter the dags if filter_by_owner and current user is not superuser
         do_filter = FILTER_BY_OWNER and (not current_user.is_superuser())
@@ -1823,6 +1827,7 @@ class HomeView(AdminIndexView):
                 "Broken DAG: [{ie.filename}] {ie.stacktrace}".format(ie=ie),
                 "error")
         session.expunge_all()
+        secret_dag_ids = [sd.dag_id for sd in session.query(CPD).all() if sd.is_secret]
         session.commit()
         session.close()
         dags = dagbag.dags.values()
@@ -1837,6 +1842,8 @@ class HomeView(AdminIndexView):
         else:
             dags = {dag.dag_id: dag for dag in dags if not dag.parent_dag}
         all_dag_ids = sorted(set(orm_dags.keys()) | set(dags.keys()))
+        # exclude secret dag
+        all_dag_ids = (d for d in all_dag_ids if d not in secret_dag_ids)
         return self.render(
             'airflow/dags.html',
             dags=dags,
@@ -2162,24 +2169,6 @@ class FileToTableView(wwwutils.LoginMixin, AirflowModelView):
         is_master=SelectField,
     )
 
-    @action('load_init', u"initファイルを取り込み", None)
-    def action_load_init(self, ids):
-        self.load_init(ids)
-
-    @provide_session
-    def load_init(self, ids, session=None):
-        FtT = models.FileToTable
-        targets = session.query(FtT).filter(FtT.id.in_(ids)).all()
-        session.commit()
-        try:
-            csa.load_init(targets)
-        except Exception as ex:
-            if not self.handle_view_exception(ex):
-                raise ex
-            flash(u'initロードでエラーが発生しました。メールをご確認ください', 'error')
-        else:
-            flash(u'initロードが完了しました')
-
     def after_model_change(self, form, model, is_created):
         csa.create_file_to_table(model)
 
@@ -2392,6 +2381,38 @@ class TaskInstanceModelView(ModelViewOnly):
             if not self.handle_view_exception(ex):
                 raise Exception("Ooops")
             flash('Failed to set state', 'error')
+
+    def get_query(self):
+        u"""
+        secretタスクを除外する
+        """
+        session = settings.Session()
+        secret_dag_ids = [sd.dag_id for sd in session.query(
+            models.CsaPresetDag).all() if sd.is_secret]
+        session.commit()
+        session.close()
+
+        return (
+            super(TaskInstanceModelView, self)
+            .get_query()
+            .filter(~models.TaskInstance.dag_id.in_(secret_dag_ids))
+        )
+
+    def get_count_query(self):
+        u"""
+        secretタスクを除外する
+        """
+        session = settings.Session()
+        secret_dag_ids = [sd.dag_id for sd in session.query(
+            models.CsaPresetDag).all() if sd.is_secret]
+        session.commit()
+        session.close()
+
+        return (
+            super(TaskInstanceModelView, self)
+            .get_count_query()
+            .filter(~models.TaskInstance.dag_id.in_(secret_dag_ids))
+        )
 
 
 class ConnectionModelView(wwwutils.SuperUserMixin, AirflowModelView):

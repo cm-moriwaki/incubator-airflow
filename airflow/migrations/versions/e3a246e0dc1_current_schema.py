@@ -282,6 +282,13 @@ def upgrade():
             sa.PrimaryKeyConstraint('id'),
             sa.UniqueConstraint('sql_name')
         )
+    if 'csa_preset_dag' not in tables:
+        op.create_table(
+            'csa_preset_dag',
+            sa.Column('dag_id', sa.String(length=259), nullable=False),
+            sa.Column('is_secret', sa.Boolean(), nullable=False),
+            sa.PrimaryKeyConstraint('dag_id')
+        )
 
 
 def downgrade():
