@@ -1599,6 +1599,8 @@ class Airflow(BaseView):
         schedule_interval = models.DAG.schedule_interval_dec(schedule_interval_raw)
         base_dag_id = request.form.get('base_dag_id')
         no_sync = request.form.get('no_sync')
+        if not dag_id:
+            dag_id = base_dag_id
 
         # for dag
         csa.remove_dag(base_dag_id)

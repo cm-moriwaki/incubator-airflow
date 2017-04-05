@@ -72,6 +72,7 @@ from airflow.utils.state import State
 from airflow.utils.timeout import timeout
 from airflow.utils.trigger_rule import TriggerRule
 import csa.connector.airflow as csa_con
+import csa.common as comm
 
 Base = declarative_base()
 ID_LEN = 250
@@ -2633,6 +2634,8 @@ class DAG(LoggingMixin):
 
     @classmethod
     def schedule_interval_dec(cls, pp_interval):
+        if not pp_interval:
+            return None
         schedule = pp_interval.replace(' ', '')
         if ',' in schedule:
             # weekly or monthly
