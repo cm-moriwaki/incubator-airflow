@@ -289,6 +289,13 @@ def upgrade():
             sa.Column('is_secret', sa.Boolean(), nullable=False),
             sa.PrimaryKeyConstraint('dag_id')
         )
+    if 'dag_start_history' not in tables:
+        op.create_table(
+            'dag_start_history',
+            sa.Column('dag_id', sa.String(length=259), nullable=False),
+            sa.Column('started_time', sa.DateTime(True), nullable=False),
+            sa.PrimaryKeyConstraint('dag_id')
+        )
 
 
 def downgrade():

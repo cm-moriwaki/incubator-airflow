@@ -1561,6 +1561,17 @@ class Airflow(BaseView):
             orm_dag.is_paused = False
         session.merge(orm_dag)
         session.commit()
+
+        exist = session.query(
+            models.DagStartHistory).filter(models.DagStartHistory.dag_id == dag_id).first()
+        if not orm_dag.is_paused:
+            if exist:
+                exist.started_time = datetime.now(TIMEZONE)
+                session.merge(exist)
+            else:
+                new_history = models.DagStartHistory(dag_id)
+                session.add(new_history)
+            session.commit()
         session.close()
 
         dagbag.get_dag(dag_id)

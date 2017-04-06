@@ -384,7 +384,6 @@ class DagBag(LoggingMixin):
             subdag.is_subdag = True
             self.bag_dag(subdag, parent_dag=dag, root_dag=root_dag)
         self.logger.debug('Loaded DAG {dag}'.format(**locals()))
-        print('Loaded DAG {dag}'.format(**locals()))
 
     def collect_dags(
             self,
@@ -848,11 +847,13 @@ class TaskInstance(Base):
         session.merge(self)
         session.commit()
 
+    @provide_session
     def is_queueable(
             self,
             include_queued=False,
             ignore_depends_on_past=False,
-            flag_upstream_failed=False):
+            flag_upstream_failed=False,
+            session=None):
         """
         Returns a boolean on whether the task instance has met all dependencies
         and is ready to run. It considers the task's state, the state
@@ -872,6 +873,15 @@ class TaskInstance(Base):
             path to add the feature
         :type flag_upstream_failed: boolean
         """
+
+        # is the execution date in the before started?
+        self.logger
+        logging.info("@@@@@@@@@ isquable %s %s", self.execution_date, self.dag_id)
+        last_started = session.query(DagStartHistory).filter(
+            DagStartHistory.dag_id == self.dag_id
+        ).first()
+        if last_started and self.execution_date < last_started.started_time:
+            return False
         # is the execution date in the future?
         if self.execution_date > datetime.now(TIMEZONE):
             return False
@@ -3552,6 +3562,21 @@ class CustomSql(Base):
 
     def __repr__(self):
         return "<CSA_INFO: {self.code}>".format(self=self)
+
+
+class DagStartHistory(Base):
+    __tablename__ = "dag_start_history"
+
+    dag_id = Column(String(ID_LEN), primary_key=True)
+    started_time = Column(DateTime(True))
+
+    def __init__(self, dag_id):
+        self.dag_id = dag_id
+        self.started_time = datetime.now(TIMEZONE)
+
+    def __repr__(self):
+        return str((
+            self.dag_id, self.started_time))
 
 
 class CsaTargetModel(Base):
