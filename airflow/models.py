@@ -874,14 +874,6 @@ class TaskInstance(Base):
         :type flag_upstream_failed: boolean
         """
 
-        # is the execution date in the before started?
-        self.logger
-        logging.info("@@@@@@@@@ isquable %s %s", self.execution_date, self.dag_id)
-        last_started = session.query(DagStartHistory).filter(
-            DagStartHistory.dag_id == self.dag_id
-        ).first()
-        if last_started and self.execution_date < last_started.started_time:
-            return False
         # is the execution date in the future?
         if self.execution_date > datetime.now(TIMEZONE):
             return False
@@ -2544,6 +2536,17 @@ class DAG(LoggingMixin):
             num=num, delta=self._schedule_interval)
 
     def following_schedule(self, dttm):
+
+        session = settings.Session()
+        last_started = session.query(DagStartHistory).filter(
+            DagStartHistory.dag_id == self.dag_id
+        ).first()
+
+        logging.info("@@@@@@@@@ following_schedule %s %s %s",
+                     self.dag_id, last_started.started_time, dttm)
+        if last_started and dttm < last_started.started_time:
+            dttm = last_started.started_time
+
         if isinstance(self._schedule_interval, six.string_types):
             cron = croniter(self._schedule_interval, dttm)
             return cron.get_next(datetime)
