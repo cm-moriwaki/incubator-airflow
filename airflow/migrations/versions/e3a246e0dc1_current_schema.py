@@ -257,7 +257,7 @@ def upgrade():
             'csa_target',
             sa.Column('dag_id', sa.String(length=259), nullable=False),
             sa.Column('order', sa.Integer(), nullable=False),
-            sa.Column('type', sa.String(length=10), nullable=False),
+            sa.Column('type', sa.String(length=30), nullable=False),
             sa.Column('target', sa.String(length=256), nullable=False),
             sa.PrimaryKeyConstraint('dag_id', 'order')
         )
@@ -281,6 +281,15 @@ def upgrade():
             sa.Column('code', sa.Text(), nullable=False),
             sa.PrimaryKeyConstraint('id'),
             sa.UniqueConstraint('sql_name')
+        )
+    if 'custom_script' not in tables:
+        op.create_table(
+            'custom_script',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('script_name', sa.String(length=256), nullable=False),
+            sa.Column('code', sa.Text(), nullable=False),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('script_name')
         )
     if 'csa_preset_dag' not in tables:
         op.create_table(

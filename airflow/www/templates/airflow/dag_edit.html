@@ -50,6 +50,7 @@
                     <select class="form-control target_type" name="type" require>
                         <option value="src" {{ 'selected' if target.type=='src' }}>ファイル連携</option>
                         <option value="sql" {{ 'selected' if target.type=='sql' }}>SQL</option>
+                        <option value="script" {{ 'selected' if target.type=='script' }}>スクリプト</option>
                     </select>
                 </div>
             </div>
@@ -62,9 +63,13 @@
                         {% for file_to_table in file_to_tables -%}
                         <option values="{{ file_to_table.schema_name }}.{{ file_to_table.table_name }}" {{ 'selected' if target.target==file_to_table.schema_name+'.'+file_to_table.table_name }}>{{ file_to_table.schema_name }}.{{ file_to_table.table_name }}</option>
                         {% endfor -%}
-                        {% else %}
+                        {% elif target.type=='sql' %}
                         {% for sql in sqls -%}
                         <option values="{{ sql.sql_name }}" {{ 'selected' if target.target==sql.sql_name}}>{{ sql.sql_name }}</option>
+                        {% endfor -%}
+                        {% elif target.type=='script' %}
+                        {% for script in scripts -%}
+                        <option values="{{ script.script_name }}" {{ 'selected' if target.target==script.script_name}}>{{ script.script_name }}</option>
                         {% endfor -%}
                         {% endif %}
                     </select>
@@ -87,6 +92,7 @@
                     <select class="form-control target_type" name="type" require>
                         <option value="src" selected>ファイル連携</option>
                         <option value="sql">SQL</option>
+                        <option value="script">スクリプト</option>
                     </select>
                 </div>
             </div>
@@ -185,6 +191,9 @@
          var all_targets = [
              {% for sql in sqls -%}
              { type: 'sql', target: '{{ sql.sql_name}}'},
+             {% endfor -%}
+             {% for script in scripts -%}
+             { type: 'script', target: '{{ script.script_name}}'},
              {% endfor -%}
              {% for file_to_table in file_to_tables -%}
              { type: 'src', target: '{{ file_to_table.schema_name}}.{{ file_to_table.table_name }}'},

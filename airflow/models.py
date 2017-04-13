@@ -3567,6 +3567,18 @@ class CustomSql(Base):
         return "<CSA_INFO: {self.code}>".format(self=self)
 
 
+class CustomScript(Base):
+
+    __tablename__ = "custom_script"
+
+    id = Column(Integer, primary_key=True)
+    script_name = Column(String(256), unique=True)
+    code = Column(Text)
+
+    def __repr__(self):
+        return "<CSA_INFO: {self.code}>".format(self=self)
+
+
 class DagStartHistory(Base):
     __tablename__ = "dag_start_history"
 
@@ -3588,7 +3600,7 @@ class CsaTargetModel(Base):
 
     dag_id = Column(String(ID_LEN), primary_key=True)
     order = Column(Integer, primary_key=True)
-    type = Column(String(10))
+    type = Column(String(30))
     target = Column(String(256))
 
     def __repr__(self):
@@ -3638,6 +3650,12 @@ class CsaConnector(LoggingMixin):
 
     def delete_sql_file(self, model):
         csa_con.delete_sql(model.sql_name, model.code)
+
+    def create_script_file(self, model):
+        csa_con.add_script(model.script_name, model.code)
+
+    def delete_script_file(self, model):
+        csa_con.delete_script(model.script_name, model.code)
 
     def create_file_to_table(self, model):
         csa_con.create_file_to_table(

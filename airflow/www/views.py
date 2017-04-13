@@ -662,6 +662,8 @@ class Airflow(BaseView):
                 CsaModel.order)]
         sqls = [r for r in session.query(
             models.CustomSql).order_by(models.CustomSql.sql_name)]
+        scripts = [r for r in session.query(
+            models.CustomScript).order_by(models.CustomScript.script_name)]
         file_to_tables = [r for r in session.query(
             models.FileToTable).order_by(models.FileToTable.schema_name, models.FileToTable.table_name)]
         CPD = models.CsaPresetDag
@@ -676,6 +678,7 @@ class Airflow(BaseView):
             csa_targets=targets,
             sqls=sqls,
             file_to_tables=file_to_tables,
+            scripts=scripts,
         )
 
     @expose('/dag_details')
@@ -2162,6 +2165,9 @@ class FileToTableView(wwwutils.LoginMixin, AirflowModelView):
         table_name=dict(
             required=True,
         ),
+        s3_key_prefix=dict(
+            required=True,
+        ),
         sort_keys=dict(
             pattern=r'^[,0-9]{1,}$',
 
@@ -2227,6 +2233,36 @@ class CustomSqlView(wwwutils.LoginMixin, AirflowModelView):
 
     def after_model_delete(self, model):
         csa.delete_sql_file(model)
+
+
+class CustomScriptView(wwwutils.LoginMixin, AirflowModelView):
+    verbose_name = u"スクリプト一覧"
+    verbose_name_plural = u"スクリプト一覧"
+    column_default_sort = ('script_name', False)
+    column_list = ('script_name',)
+    column_filters = ('script_name',)
+    column_labels = dict(
+        sql_name=u'スクリプト名',
+    )
+    form_columns = (
+        'script_name',
+        'code',
+    )
+    form_widget_args = {
+        'code': {
+            'rows': 20,
+            'required': True,
+        },
+        'script_name': {
+            'required': True,
+        }
+    }
+
+    def after_model_change(self, form, model, is_created):
+        csa.create_script_file(model)
+
+    def after_model_delete(self, model):
+        csa.delete_script_file(model)
 
 
 class JobModelView(ModelViewOnly):

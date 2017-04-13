@@ -75,6 +75,7 @@ def create_app(config=None):
         av(vs.VariableView(models.Variable, Session, name=u"変数", category=u"ブラウズ"))
         av(vs.FileToTableView(models.FileToTable, Session, name=u"連携ファイル", category=u"ブラウズ"))
         av(vs.CustomSqlView(models.CustomSql, Session, name=u"SQL", category=u"ブラウズ"))
+        av(vs.CustomScriptView(models.CustomScript, Session, name=u"スクリプト", category=u"ブラウズ"))
         av(vs.TaskInstanceModelView(models.TaskInstance, Session, name=u"実行履歴", category=u"ログ"))
         # av(vs.LogModelView(
         #     models.Log, Session, name=u"ログ", category=u"ブラウズ"))
