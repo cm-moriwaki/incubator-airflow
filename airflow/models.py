@@ -3650,8 +3650,7 @@ class CsaConnector(LoggingMixin):
         )
 
     def delete_file_to_table(self, model):
-        # TODO
-        pass
+        csa_con.delete_file_to_table(model.schema_name, model.table_name)
 
     @provide_session
     def update_task(self, dag_id, schedule, session=None):
