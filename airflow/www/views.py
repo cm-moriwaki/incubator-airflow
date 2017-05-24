@@ -2134,6 +2134,17 @@ class VariableView(wwwutils.LoginMixin, AirflowModelView):
 
 
 class FileToTableView(wwwutils.LoginMixin, AirflowModelView):
+    class TableTypeSelectField(SelectField):
+        def iter_choices(self):
+            current_data = self.data if self.data is not None else self.coerce(self.default)
+            current_value = self._data_to_val(current_data)
+            for value, label in self.choices:
+                yield (value, label, self.coerce(value) == current_value)
+
+        @staticmethod
+        def _data_to_val(data):
+            return 'all' if data and data == 'True' else 'add'
+
     verbose_name = u"連携ファイル一覧"
     verbose_name_plural = u"連携ファイル一覧"
 
@@ -2173,13 +2184,14 @@ class FileToTableView(wwwutils.LoginMixin, AirflowModelView):
     form_args = dict(
         is_master=dict(
             choices=(
-                ('all', u'全件'),
-                ('add', u'差分(追記)'),
+                (u'all', u'全件'),
+                (u'add', u'差分(追記)'),
             ),
+            default=u'all',
         ),
     )
     form_overrides = dict(
-        is_master=SelectField,
+        is_master=TableTypeSelectField,
     )
 
     def after_model_change(self, form, model, is_created):
